@@ -1,12 +1,12 @@
-## Author: (your name)     
+## Author: Jamie Kostyun
 ## Ecological Genomics:   
 
 ### Overall Description of notebook      
 
-fill in your description here!
+This notebook will document my entries throughout the semester.
 
 
-### Date started: (year-month-day)   
+### Date started: 2018-01-24  
 ### Date end:   (year-month-day)    
 
 ### Philosophy   
@@ -91,6 +91,12 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 <div id='id-section1'/>
 ### Page 1: 2018-01-24. Notes on using Github, Rmarkdown, and the UNIX command-line
 
+Today, we created Github repo for the course, and started the course Notebook. 
+
+Other goals:
+
+* publish notebook to Github
+* log into UNIX server
 
 ------
 <div id='id-section2'/>
