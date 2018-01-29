@@ -28,7 +28,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 ### Table of contents for 60 entries (Format is *Page: Date(with year-month-day). Title*)        
 * [Page 1: 2018-01-24](#id-section1). Intro to Github, RMarkdown, and UNIX command-line
 * [Page 2: 2018-01-26](#id-section2). Practice with UNIX commands
-* [Page 3:](#id-section3).
+* [Page 3: 2018-01-29](#id-section3). Introduction to handling RNAseq data
 * [Page 4:](#id-section4).
 * [Page 5:](#id-section5).
 * [Page 6:](#id-section6).
@@ -106,7 +106,32 @@ Today, I practiced using UNIX commands in the Terminal, including modifying file
 
 ------
 <div id='id-section3'/>
-### Page 3:
+### Page 3: 2108-01-29. Introduction to handling RNAseq data
+
+Today, we started handling RNAseq data: began learning the RNA processing pipeline, how to write a bash script, and how to interpret fastq files. 
+
+We practiced with RNAseq data from horned beetles, where different populations have diverged in their relationship b/t male body size and horn size - i.e. different thresholds. 
+
+First, I connected to the class server and navigated to the data directory:
+
+      cd /data/project_data/beetles/rawdata/
+
+...from which I examined the beginning of a fastq file:
+
+      zcat WA_PP1_F2_AGTTCC_L003_R1_001.fastq.gz | head -n4
+
+To examine the overall/summary quality scores for all reads in this sample (Western Australia, Female2, Paired-End1), I first created a new directory in my home directory to hold working RNAseq files. Then, I used commands from FastQ to create the quality report and have it output to my new directory:
+
+      cd ~
+      mkdir 2018_clean_reads
+      fastqc /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R1_001.fastq.gz -o .
+
+This output included a .zip file and an .html file. Because we will be using reads from both paired-end sets, I did the same thing with the other file:
+
+      fastqc /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R2_001.fastq.gz -o .
+
+Using cyberduck, I then moved these files to a data folder on my personal computer. Next, I opend the .html files to examine the quality scores for both sets. Overall, both sets look pretty good although PE2 has more poorer quality base calls near the end of the read. Both also have residue from the random hexamer primers at the front of the read as well as some adaptor sequence near the end - both of these issues will be fixed when we trim the reads. 
+
 ------
 <div id='id-section4'/>
 ### Page 4:
