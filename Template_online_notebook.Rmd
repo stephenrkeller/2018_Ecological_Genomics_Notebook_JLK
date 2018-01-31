@@ -29,7 +29,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 1: 2018-01-24](#id-section1). Intro to Github, RMarkdown, and UNIX command-line
 * [Page 2: 2018-01-26](#id-section2). Practice with UNIX commands
 * [Page 3: 2018-01-29](#id-section3). Introduction to handling RNAseq data
-* [Page 4:](#id-section4).
+* [Page 4: 2018-01-31](#id-section4). Continuing with RNAseq data: filtering and mapping to reference
 * [Page 5:](#id-section5).
 * [Page 6:](#id-section6).
 * [Page 7:](#id-section7).
@@ -106,7 +106,7 @@ Today, I practiced using UNIX commands in the Terminal, including modifying file
 
 ------
 <div id='id-section3'/>
-### Page 3: 2108-01-29. Introduction to handling RNAseq data
+### Page 3: 2018-01-29. Introduction to handling RNAseq data
 
 Today, we started handling RNAseq data: began learning the RNA processing pipeline, how to write a bash script, and how to interpret fastq files. 
 
@@ -133,8 +133,98 @@ This output included a .zip file and an .html file. Because we will be using rea
 Using cyberduck, I then moved these files to a data folder on my personal computer. Next, I opend the .html files to examine the quality scores for both sets. Overall, both sets look pretty good although PE2 has more poorer quality base calls near the end of the read. Both also have residue from the random hexamer primers at the front of the read as well as some adaptor sequence near the end - both of these issues will be fixed when we trim the reads. 
 
 ------
-<div id='id-section4'/>
-### Page 4:
+<div id='id-section4'/> 
+### Page 4: 2018-01-31. Continuing with RNAseq data: filtering and mapping to reference
+
+Today, we continued dealing with beetle RNAseq data. After examining the overall quality with the FastQ reports, we used the program Trimmomatic to trim and filter reads. To do so, we first copied an example script for Trimmomatic from the course materials to our home directory (into myscripts directory):
+
+      cp /data/scripts/trim_example.sh ~/myscripts/
+      
+We then used the program Vim to edit the example script within the command window:
+
+      vim trim_example.sh
+      
+Inside the vim edit window, this is what the example script looked like:
+
+      #!/bin/bash
+        java -classpath /data/popgen/Trimmomatic-0.33/trimmomatic-0.33.jar org.usadellab.trimmomatic.TrimmomaticPE \
+                -threads 1 \ 
+                -phred33 \
+                 /data/project_data/beetles/rawdata/WA_PP1_YOURSAMPLE_R1.fastq.gz \
+                 /data/project_data/beetles/rawdata/WA_PP1_YOURSAMPLE_R2.fastq.gz \
+                 ~/cleanreads/"YOURSAMPLE_R1_clean_paired.fa" \
+                 ~/cleanreads/"YOURSAMPLE_R1_clean_unpaired.fa" \
+                 ~/cleanreads/"YOURSAMPLE_R2_clean_paired.fa" \
+                 ~/cleanreads/"YOURSAMPLE_R2_clean_unpaired.fa" \
+                 ILLUMINACLIP:/data/popgen/Trimmomatic-0.33/adapters/TruSeq3-PE.fa:2:30:10 \
+                 LEADING:28 \
+                TRAILING:28 \
+                SLIDINGWINDOW:6:28 \
+                HEADCROP:12 \
+                MINLEN:35 \
+                
+This is specifying that it's a Java based program, where to find it (in the shared class space in data/popgen), and that we'll be using it to analyze paired end data. After the -phred33 \, we specify the input files - there are two because we're doing paired end analysis. Next, it lists the output files for the cleaned/trimmed reads. Finally, it lists the steps of functions to perform on the raw reads. Here's more info on these steps:
+
+ILLUMINACLIP: Cut adapter and other illumina-specific sequences from the read.
+SLIDINGWINDOW: Perform a sliding window trimming, cutting once the average quality within the window falls below a threshold.
+LEADING: Cut bases off the start of a read, if below a threshold quality
+TRAILING: Cut bases off the end of a read, if below a threshold quality
+CROP: Cut the read to a specified length
+HEADCROP: Cut the specified number of bases from the start of the read
+MINLEN: Drop the read if it is below a specified length
+
+To edit the script in vim, need to type "i" for INSERT. After changes are complete, hit escape key to exit edit mode. To enter general commands, type ":" followed by the command. For example, ":w" means write the changes to the file, and ":q" means quit vim.
+
+After editing, this is what my Trimmomatic script looked like:
+
+      #!/bin/bash
+        java -classpath /data/popgen/Trimmomatic-0.33/trimmomatic-0.33.jar org.usadellab.trimmomatic.TrimmomaticPE \
+                      -threads 1 \
+                      -phred33 \
+                       /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R1_001.fastq.gz \
+                       /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R2_001.fastq.gz \
+                       ~/2018_clean_reads/"WA_PP1_F2_R1_clean_paired.fa" \
+                       ~/2018_clean_reads/"WA_PP1_F2_R1_clean_unpaired.fa" \
+                       ~/2018_clean_reads/"WA_PP1_F2_R2_clean_paired.fa" \
+                       ~/2018_clean_reads/"WA_PP1_F2_R2_clean_unpaired.fa" \
+                       ILLUMINACLIP:/data/popgen/Trimmomatic-0.33/adapters/TruSeq3-PE.fa:2:30:10 \
+                       LEADING:28 \
+                   TRAILING:28 \
+                   SLIDINGWINDOW:6:28 \
+                   HEADCROP:12 \
+                   MINLEN:35 \
+
+I then changed the filename, and also changed the user permissions so I could execute it. Here, r means readable, w means writeable, and x means executable:
+
+      mv trim_example.sh trim_Fl.sh
+      chmod u+x trim_Fl.sh
+      
+While still in the myscripts directory, I then executed the script:
+
+      ./trim_Fl.sh 
+      
+Output inside terminal window:
+
+      TrimmomaticPE: Started with arguments: -threads 1 -phred33        /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R1_001.fastq.gz /data/project_data/beetles/rawdata/WA_PP1_F2_AGTTCC_L003_R2_001.fastq.gz /users/j/k/jkostyun/2018_clean_reads/WA_PP1_F2_R1_clean_paired.fa /users/j/k/jkostyun/2018_clean_reads/WA_PP1_F2_R1_clean_unpaired.fa /users/j/k/jkostyun/2018_clean_reads/WA_PP1_F2_R2_clean_paired.fa /users/j/k/jkostyun/2018_clean_reads/WA_PP1_F2_R2_clean_unpaired.fa ILLUMINACLIP:/data/popgen/Trimmomatic-0.33/adapters/TruSeq3-PE.fa:2:30:10 LEADING:28 TRAILING:28 SLIDINGWINDOW:6:28 HEADCROP:12 MINLEN:35
+      Using PrefixPair: 'TACACTCTTTCCCTACACGACGCTCTTCCGATCT' and 'GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT'
+      ILLUMINACLIP: Using 1 prefix pairs, 0 forward/reverse sequences, 0 forward only sequences, 0 reverse only sequences
+      Input Read Pairs: 16000000 Both Surviving: 10714663 (66.97%) Forward Only Surviving: 2565021 (16.03%) Reverse       Only Surviving: 734046 (4.59%) Dropped: 1986270 (12.41%)
+      TrimmomaticPE: Completed successfully
+      
+To make sure that the script actually did what we thought it was going to, we ran FastQ on the clean reads file:
+
+      cd 2018_clean_reads
+      fastqc ~/2018_clean_reads/WA_PP1_F2_R1_clean_paired.fa
+      fastqc ~/2018_clean_reads/WA_PP1_F2_R2_clean_paired.fa
+      
+Once satisfied with the improved quality, we then started preparing to map the clean reads against the reference. The reference for O. taurus is already available in the shared course space. To first index the file (only needs to be done once), we used the program bwa:
+
+      bwa index /data/project_data/beetles/reference/OTAU.fna
+      
+Then we mapped clean reads to the reference, and output (sam file).
+
+      bwa mem /data/project_data/beetles/reference/OTAU.fna  ~/2018_clean_reads/WA_PP1_F2_R1_clean_paired.fa ~/2018_clean_reads/WA_PP1_F2_R2_clean_paired.fa > WA_PP1_F2_bwamem.sam
+
 ------
 <div id='id-section5'/>
 ### Page 5:
