@@ -30,7 +30,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 2: 2018-01-26](#id-section2). Practice with UNIX commands
 * [Page 3: 2018-01-29](#id-section3). Introduction to handling RNAseq data
 * [Page 4: 2018-01-31](#id-section4). Continuing with RNAseq data: filtering and mapping to reference
-* [Page 5:](#id-section5).
+* [Page 5: 2018-02-05 and 2018-02-06](#id-section5). Examining SAM file and troubleshooting 
 * [Page 6:](#id-section6).
 * [Page 7:](#id-section7).
 * [Page 8:](#id-section8).
@@ -227,7 +227,43 @@ Then we mapped clean reads to the reference, and output (sam file).
 
 ------
 <div id='id-section5'/>
-### Page 5:
+### Page 5: 2018-02-05 and 2018-02-06. Examining SAM file and troubleshooting
+
+Today at the beginning of class, we used the -tail function to start examining our SAM file:
+      
+      tail -n 100 WA_PP1_F2_bwamem.sam > tail.PP1_F2.sam
+      vim tail.PP1_F2.sam
+      
+However, when I went to examine it, it was an empty file. So was my SAM file. Clearly there was a problem with my mapping command/output, so I followed along in class using a SAM file available in the shared class space.
+
+But now I realized that my actual SAM file was just in another folder, and the empty one was from a first attempt at mapping where I got an error message. So I moved the correct file to the correct folder. Problem solved.
+
+After looking over the vim field, just to get a sense of what's included in a SAM file, we assessed overall mapping quality:
+
+      samtools flagstat WA_PP1_F2_bwamem.sam
+      
+Output inside terminal window:
+
+      21506273 + 0 in total (QC-passed reads + QC-failed reads)
+      0 + 0 secondary
+      76947 + 0 supplementary
+      0 + 0 duplicates
+      17749530 + 0 mapped (82.53% : N/A)
+      21429326 + 0 paired in sequencing
+      10714663 + 0 read1
+      10714663 + 0 read2
+      17100460 + 0 properly paired (79.80% : N/A)
+      17369268 + 0 with itself and mate mapped
+      303315 + 0 singletons (1.42% : N/A)
+      183336 + 0 with mate mapped to a different chr
+      151063 + 0 with mate mapped to a different chr (mapQ>=5)
+      
+Next we used a python script to count reads mapping to different contigs/"genes":
+
+      python countxpression_PE.py 20 35 ~/mydata/sam/PP1_F2_countstatssummary.txt ~/mydata/sam/WA_PP1_F2_bwamem.sam
+      
+However, the file only contains 0 for all reads, suggesting there is something wrong with the script. Indeed, it seems that the mem function in BWA (which we used for mapping) may have somewhat different flags than the align function (which is what the script was written for).
+      
 ------
 <div id='id-section6'/>
 ### Page 6:
