@@ -266,7 +266,75 @@ However, the file only contains 0 for all reads, suggesting there is something w
       
 ------
 <div id='id-section6'/>
-### Page 6:
+### Page 6: 2018-02-07. Exploring expression differences using DESeq2.
+
+Today, we continued our exploration and analysis of beetle RNAseq data. Last time, the script we were going to use to get count data didn't work on the BWA mem function. So Melissa provided an alternate file for us that used the BWA align function to get counts, and then a bash script to combine read counts from all individuals into a single file.
+
+First, we copied the relevant files from the course space. Typically I would just use CyyberDuck, but here I tried this:
+
+    scp jkostyun@pbio381.uvm.edu:/data/project_data/beetles/counts/* .
+    
+Fo this command to work, I was in the directory on my computer that I wanted to transfer the files to (indicated by the "."). This copied two files "allcountsdataRN_noIT.txt" and "cols_data_noIT.txt".
+
+Next, we loaded the DESeq2 package in R(Studio) and started writing a script to use for differential expression analyses. 
+
+      #set working directory
+      library("DESeq2")
+      library("ggplot2")
+
+      countsTable = read.delim('allcountsdataRN_noIT.txt', header=T, stringsAsFactors = T, row.names=1)
+      countData = as.matrix(countsTable)
+      head(countsData)
+
+      conds = read.delim('cols_data_noIT.txt', header=T, stringsAsFactors = T, row.names=1)
+      head(conds)
+      colData = as.data.frame(conds)
+
+      ################
+
+      dds = DESeqDataSetFromMatrix(countData = countData, colData = colData, design = ~ devstage + sex + population)
+      # DEseq2 interprets models as testing differences b/t last predictor accounting for previous predictors
+
+      dim(dds) #gives summary of input: 17483    48
+
+      dds1 = dds[rowSums(counts(dds)) > 1]  #revises dds to exclude transcripts with 0 reads, as previous analysis        included all transcripts
+      dim(dds1) #gives updated summary: 16851    48
+
+      dds1 = DESeq(dds1, modelMatrixType = "standard") #this is the primary command to compare transcript counts
+
+      resultsNames(dds1)
+      #[1] "Intercept" "devstage_L3L_vs_AD4" "devstage_PD1_vs_AD4" "devstage_PP1_vs_AD4" "sex_M_vs_F"         
+      #[6] "population_WA_vs_NC"
+
+      res = results(dds1)  #this aggregates output of DESeq command
+      res = res[order(res$padj),] #this re-orders output by adjusted p-value
+      head(res)
+
+      #log2 fold change (MAP): population WA vs NC 
+      #Wald test p-value: population WA vs NC 
+      #DataFrame with 6 rows and 6 columns
+      # baseMean log2FoldChange     lfcSE      stat       pvalue         padj
+      # <numeric>      <numeric> <numeric> <numeric>    <numeric>    <numeric>
+      # OTAU008667-RA 231.87111     -0.7803753 0.1132661 -6.889755 5.588875e-12 4.220159e-08
+      # OTAU012562-RA 251.77436     -0.7828048 0.1135355 -6.894800 5.394059e-12 4.220159e-08
+      # OTAU011160-RA  10.24152     -1.0863185 0.1836927 -5.913781 3.343429e-09 1.470408e-05
+      # OTAU012716-RA 188.87768      1.0137238 0.1721500  5.888609 3.894604e-09 1.470408e-05
+      # OTAU002976-RA 998.42315     -0.6159655 0.1075972 -5.724735 1.035950e-08 3.128984e-05
+      # OTAU014686-RA 603.66091     -0.8168345 0.1468336 -5.562995 2.651835e-08 6.674668e-05
+
+      summary(res)
+      # out of 16851 with nonzero total read count
+      # adjusted p-value < 0.1
+      # LFC > 0 (up)     : 264, 1.6% 
+      # LFC < 0 (down)   : 245, 1.5% 
+      # outliers [1]     : 133, 0.79% 
+      # low counts [2]   : 1616, 9.6% 
+      # (mean count < 1)
+      # [1] see 'cooksCutoff' argument of ?results
+      # [2] see 'independentFiltering' argument of ?results
+
+
+
 ------
 <div id='id-section7'/>
 ### Page 7:
