@@ -31,9 +31,9 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 3: 2018-01-29](#id-section3). Introduction to handling RNAseq data
 * [Page 4: 2018-01-31](#id-section4). Continuing with RNAseq data: filtering and mapping to reference
 * [Page 5: 2018-02-05 and 2018-02-06](#id-section5). Examining SAM file and troubleshooting 
-* [Page 6: 2018-02-14](#id-section6). Using DESeq2 to assess differential gene expression
-* [Page 7:](#id-section7).
-* [Page 8:](#id-section8).
+* [Page 6: 2018-02-07](#id-section6). Exploring expression differences using DESeq2
+* [Page 7: 2018-02-14](#id-section7). Using DESeq2 to assess differential gene expression
+* [Page 8: 2018-02-28](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
 * [Page 9:](#id-section9).
 * [Page 10:](#id-section10).
 * [Page 11:](#id-section11).
@@ -426,8 +426,136 @@ Next, we started the process for GO term assignment and assessment of significan
 
 
 ------
-<div id='id-section8'/>
-### Page 8:
+<div id='id-section8'/> 
+### Page 8: 2018-02-21 Continuing with DESEq2 and also clustering/module ID with WGCNA
+
+Today, we looked at differential expession among all factors by binding them into groups.
+
+        #this creates a new column in dataset that combines the different factors
+        colData$group = factor(paste0(colData$population, "-", colData$devstage, "-", colData$sex))
+        head(colData)
+        dds = DESeqDataSetFromMatrix(countData = countData, colData = colData, design = ~ group)
+        # DEseq2 interprets models as testing differences b/t last predictor accounting for previous predictors
+        dds1 = dds[rowSums(counts(dds)) > 1, ]  #revises dds to exclude transcripts with 0 reads, as previous analysis included all transcripts
+        dim(dds1) #check 
+        dds1 = DESeq(dds1, parallel=T) #runs on more than one processor, if computer setup to do so
+        resultsNames(dds1)
+        
+        res_pop_PP1_F = results(dds1, contrast = list(c("groupNC.PP1.F"), c("groupWA.PP1.F")), listValues=c(1/2, -1/2), alpha=0.05) #pulling out results for a particular comparison
+        res_pop_PP1_F = res_pop_PP1_F[order(res_pop_PP1_F$padj),] #order by p-value
+        head(res_pop_PP1_F)
+
+        sig_pop_PP1_F = res_pop_PP1_F[which(res_pop_PP1_F$padj <0.05), ] #pull out sig. ones, can be used to generally subset data
+        dim(sig_pop_PP1_F) #check number
+        
+        sig_pop_PP1_F_df = as.data.frame(sig_pop_PP1_F) #turns results into dataframe to use in heatmap plot
+        sig_pop_PP1_F_df$Row.names = rownames(sig_pop_PP1_F_df)
+        dim(sig_pop_PP1_F_df) 
+        
+        genesOfInterest_pop_PP1_F = c(sig_pop_PP1_F_df$Row.names) #pulls out gene names
+        length(genesOfInterest_pop_PP1_F)  #check number
+        
+        vsd = vst(dds1, blind=F)
+        dds1$combined = factor(paste0(dds1$population, "-", dds1$devstage, "-", dds1$sex))
+        dds1$combined <- factor(dds1$combined, levels=c("WA-L3L-F","WA-L3L-M","WA-PP1-F","WA-PP1-M","WA-PD1-F","WA-PD1-M","WA-AD4-F","WA-AD4-M","NC-L3L-F","NC-L3L-M","NC-PP1-F","NC-PP1-M","NC-PD1-F","NC-PD1-M","NC-AD4-F","NC-AD4-M"), labels=c("WA-L3L-F","WA-L3L-M","WA-PP1-F","WA-PP1-M","WA-PD1-F","WA-PD1-M","WA-AD4-F","WA-AD4-M","NC-L3L-F","NC-L3L-M","NC-PP1-F","NC-PP1-M","NC-PD1-F","NC-PD1-M","NC-AD4-F","NC-AD4-M"))
+
+        baseMeanPerGrp <- sapply( levels(dds1$combined), function(lvl) rowMeans(counts(dds1,normalized=TRUE)[,dds1$combined == lvl] ) )
+
+        head(baseMeanPerGrp)
+        dim(baseMeanPerGrp)
+        
+        #pulls out normalized counts (mean of 3 reps) for all the sig. genes, so we can put them on the same plot
+        m = baseMeanPerGrp[genesOfInterest_pop_PP1_F, c("WA-PP1-F", "WA-PP1-M", "NC-PP1-F", "NC-PP1-M")]
+        mat_scaled = t(apply(m, 1, scale))
+        head(mat_scaled)
+        
+        library("RColorBrewer")
+        library("pheatmap")
+        
+        pheatmap(mat_scaled, labels_col=c("WA-PP1-F", "WA-PP1-M", "NC-PP1-F", "NC-PP1-M"), cluster_cols = F, cluster_rows = T)
+        
+        norm.counts = counts(dds1, normalized=T)
+        dim(norm.counts)
+        write.csv(norm.counts, file="beetle_norm_counts.csv", row.names=T, quote=F)
+        
+We also started examining clustering analyses with WGCNA.
+
+        source("http://bioconductor.org/biocLite.R") 
+        biocLite(c("AnnotationDbi", "impute", "GO.db", "preprocessCore")) 
+        install.packages("WGCNA")
+        library("WGCNA")
+        
+        beetData = read.csv("beetle_norm_counts.csv")
+        dim(beetData)
+        Head(beetData)
+        names(beetData)
+
+        bdatExpr0 = as.data.frame(t(beetData[, -c(1:1)]))
+        dim(bdatExpr0)
+        names(bdatExpr0) = beetData$X
+        
+        row.names(bdatExpr0) = names(beetData)[-c(1:1)]
+
+        bgsg = goodSamplesGenes(bdatExpr0, verbose = 3)
+
+        ###### Make a cluster tree to look for outliers #####
+        sampleTree = hclust(dist(bdatExpr0), method="average")
+
+        sizeGrWindow(12,9)
+        par(cex= 0.6)
+        par(mar=c(0,4,2,0))
+
+        plot(sampleTree, main="Sampling clustering to detect outliers", sub="", xlab="", cex.lab=1.5, cex.axis=1.5, cex.main=2)
+
+        ####Read in trait data #####
+        btraitData = read.table("cols_data_noIT_num.txt", header=T)
+        dim(btraitData)
+        head(btraitData)
+
+        ####Network construction####
+        powers = c(c(1:10), seq(from=12, to=20, by=2))
+
+        sft = pickSoftThreshold(bdatExpr0, powerVector = powers, verbose=5)
+        
+        ####Data visulaization####
+        sizeGrWindow(9,5)
+        par(mfrow = c(1,2))
+        cex=0.9
+        
+        plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab="Soft threshold (power)", ylab="Scale Free Topology Model Fit, signed R^2", type="n", main=paste("Scale independence"))
+        text(sft$fitIndices[,1], -sign(sft$fitIndices[,3]*sft$fitIndices[,2], labels=powers, cex=1, col="red"))
+        abline(h=0.9, col="red")
+
+        #plot mean connectivity of soft threshold power
+        plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab="Soft threshold (power)", ylab="Mean Connectivity", type="n", main=paste("Mean Connectivity"))
+        text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1, col="red")
+
+        net = blockwiseModules(bdatExpr0, power=6, TOMType = "unsigned", minModuleSize = 30, reassignThreshold = 0, mergeCutHeight=0.25, numericLabels=T, pamRespectsDendro=F, saveTOMS=T, saveTOMFileBase="beetleTOM", verbose=3)
+
+        sizeGrWindow(12,9)
+        mergedColors = labels2colors(net$colors)
+        plotDendroAndColors(net$dendrograms[[1]], mergedColors[net$blockGenes[[1]]], "Module colors", dendroLabels=F, hang=0.03, addGuide=T, guideHang=0.05)
+
+        moduleLabels = net$colors
+        moduleColors = labels2colors(net$colors)
+        MEs = net$MEs
+        geneTree = net$dendrograms[[1]]
+        
+        ######Define number of genes in samples
+        nGenes = ncol(bdatExpr0)
+        nSamples = nrow(bdatExpr0)
+
+        MEs0 = moduleEigengenes(bdatExpr0, moduleColors)$eigengenes
+        MEs = orderMEs(MEs0)
+        moduleTraitCor = cor(MEs, btraitData, use="p")
+        moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+        
+        sizeGrWindow(10,6)
+        textMatrix = paste(signif(moduleTraitCor, 2), "\n(", signif(moduleTraitPvalue, 1), ")", sep="")
+        dim(textMatrix) = dim(moduleTraitCor)
+        par(mar = c(6,8.5,3,3))
+        labledHeatmap(Matrix=moduleTraitCor, xLabels=names(btraitData), yLabels=names(MEs), ySymbols = names(MEs), colorLabels=F, colors=greenWhiteRed(50), textMatrix=textMatrix, setStdMargins=F, cex.text=0.5, zlim=c(-1,1), main=paste("Module-trait relationships"))
+
 ------
 <div id='id-section9'/>
 ### Page 9:
