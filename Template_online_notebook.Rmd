@@ -34,7 +34,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 6: 2018-02-07](#id-section6). Exploring expression differences using DESeq2
 * [Page 7: 2018-02-14](#id-section7). Using DESeq2 to assess differential gene expression
 * [Page 8: 2018-02-28](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
-* [Page 9:](#id-section9).
+* [Page 9: 2018-03-05](#id-section9). Code for Assignment 1 analysis
 * [Page 10:](#id-section10).
 * [Page 11:](#id-section11).
 * [Page 12:](#id-section12).
@@ -558,7 +558,255 @@ We also started examining clustering analyses with WGCNA.
 
 ------
 <div id='id-section9'/>
-### Page 9:
+### Page 9: 2018-03-05: Code for Assignment 1 analysis
+
+Here is my code for examining DGE between North Carolina and Western Australia beetle populations:
+
+        ######################################### Assess DGE ##################################
+
+        setwd("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/DGE/Counts")
+        
+        library("DESeq2")
+        library("ggplot2")
+        
+        ### Import data ###
+
+        countsTable = read.delim('allcountsdataRN_noIT.txt', header=T, stringsAsFactors = T, row.names=1)
+        countData = as.matrix(countsTable)
+        head(countData) #check
+        
+        conds = read.delim('cols_data_noIT.txt', header=T, stringsAsFactors = T, row.names=1)
+        head(conds) #check
+        colData = as.data.frame(conds)
+
+
+        ### Model to compare populations, controlling for sex and dev stage ###
+        
+        #want to identify differences between populations, but controlling for other relevant factors
+        
+        dds_pop = DESeqDataSetFromMatrix(countData = countData, colData = colData, design = ~ devstage + sex + population)
+        # DEseq2 interprets models as testing differences b/t last predictor accounting for previous predictors
+        
+        dim(dds_pop) #gives summary of input
+        dds_pop1 = dds_pop[rowSums(counts(dds_pop)) > 1, ]  #revises dds to exclude transcripts with 0 reads, as previous analysis included all transcripts
+        dim(dds_pop1) #gives updated summary
+
+        dds_pop1 = DESeq(dds_pop1, parallel=T, modelMatrixType = "standard")
+        
+        res = results(dds_pop1)  #this aggregates output of DESeq command
+        res = res[order(res$padj),] #this re-orders output by adjusted p-value
+        res = res[order(res$log2FoldChange),] #this re-orders output by Fold Change
+        head(res) #gives a peak at output
+        
+        summary(res) #default is p<0.1
+        summary(res, alpha=0.05)
+        
+        write.csv(res, file="DGE_NCvsWA_pop.csv", row.names=T, quote=F) #this outputs results as csv file
+        
+        sig_res_pop = res[which(res$padj <0.05), ] #pull out sig. only
+        write.csv(sig_res_pop, file="DGE_NCvsWA_pop_sig.csv", row.names=T, quote=F) 
+        
+        neglogpval = as.matrix(-log(res$pvalue))   #script for GO Mann-Whitney test requires this format
+        res_negpval = cbind(row.names(res), neglogpval) #here using raw p-value
+        colnames(res_negpval)=c("gene", "neglogpval")
+        
+        write.csv(res_negpval, file="DGE_NCvsWA_neglogpval.csv", row.names=F, quote=F)
+        
+        #MA plot to visualize global differential expression
+        plotMA(res, main="NC vs. WA Global Expression Differences", alpha=0.05, ylim=c(-1.5,1.5))
+        #abline(h=c(-1,1), col="blue", lwd = 2)
+        
+        #PCA to get a global view of gene expression patterns
+        rld_pop <- rlog(dds_pop1, blind=FALSE) 
+        data <- plotPCA(rld_opop, intgroup=c("population","devstage","sex"), returnData=TRUE)
+        percentVar <- round(100 * attr(data, "percentVar"))
+        
+        ggplot(data, aes(PC1, PC2, color=population, shape=sex)) +
+          geom_point(size=4, alpha=0.85) +
+          xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+          ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+          theme_minimal()
+        
+        ggplot(data, aes(PC1, PC2, color=population, shape=devstage)) +
+          geom_point(size=4, alpha=0.85) +
+          xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+          ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+          theme_minimal()
+        
+        ggplot(data, aes(PC1, PC2, color=sex, shape=devstage)) +
+          geom_point(size=4, alpha=0.85) +
+          xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+          ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+          theme_minimal()
+
+
+        ### Models to compare sex-specific expression across developmental stages ###
+        
+        #want to compare NC Female vs. WA Female and NC Male vs. WA Male
+        
+        colData$group = factor(paste0(colData$population, "-", colData$sex)) #creates group of population and sex, 'ignoring' dev stage
+        head(colData)
+
+        # population devstage sex ind group
+        # NC_AD4_F1_         NC      AD4   F   1  NC-F
+        # NC_AD4_F2_         NC      AD4   F   2  NC-F
+        # NC_AD4_F3_         NC      AD4   F   3  NC-F
+        # NC_AD4_M1_         NC      AD4   M   1  NC-M
+        # NC_AD4_M2_         NC      AD4   M   2  NC-M
+        # NC_AD4_M3_         NC      AD4   M   3  NC-M
+        
+        dds_sex = DESeqDataSetFromMatrix(countData = countData, colData = colData, design = ~ group)
+        
+        dim(dds_sex) 
+        dds_sex1 = dds_sex[rowSums(counts(dds_sex)) > 1, ]  
+        dim(dds_sex1) 
+        
+        dds_sex1 = DESeq(dds_sex1, parallel=T)
+        
+        resultsNames(dds_sex1)
+        # [1] "Intercept" "groupNC.F" "groupNC.M" "groupWA.F" "groupWA.M"
+
+        #For females
+        res_F = results(dds_sex1, contrast = list(c("groupNC.F"), c("groupWA.F")), listValues=c(1/2, -1/2))
+        res_F = res_F[order(res_F$padj),]
+        head(res_F)
+        
+        summary(res_F)
+        summary(res_F, alpha=0.05)
+        
+        write.csv(res_F, file="DGE_NCvsWA_F.csv", row.names=T, quote=F)
+        
+        sig_res_F = res_F[which(res_F$padj <0.05), ] #pull out sig. only
+        write.csv(sig_res_F, file="DGE_NCvsWA_F_sig.csv", row.names=T, quote=F)
+
+        #For males
+        res_M = results(dds_sex1, contrast = list(c("groupNC.M"), c("groupWA.M")), listValues=c(1/2, -1/2))
+        res_M = res_F[order(res_M$padj),]
+        head(res_M)
+        
+        summary(res_M)
+        summary(res_M, alpha=0.05)
+        
+        sig_res_M = res_M[which(res_M$padj <0.05), ] #pull out sig. only
+        
+        write.csv(res_M, file="DGE_NCvsWA_M.csv", row.names=T, quote=F)
+        write.csv(sig_res_M, file="DGE_NCvsWA_M_sig.csv", row.names=T, quote=F)
+
+        neglogpval_F = as.matrix(-log(res_F$pvalue))   #script for GO Mann-Whitney test requires this format
+        res_negpval_F = cbind(row.names(res_F), neglogpval_F)
+        colnames(res_negpval_F)=c("gene", "neglogpval")
+        
+        write.csv(res_negpval_F, file="DGE_NCvsWA_F_neglogpval.csv", row.names=F, quote=F)
+        
+        neglogpval_M = as.matrix(-log(res_M$pvalue))   #script for GO Mann-Whitney test requires this format
+        res_negpval_M = cbind(row.names(res_M), neglogpval_M) #this uses raw p-value rather than adjusted (seems to be too restrictive for GO script)
+        colnames(res_negpval_M)=c("gene", "neglogpval")
+        
+        write.csv(res_negpval_M, file="DGE_NCvsWA_M_neglogpval.csv", row.names=F, quote=F)
+
+        #PCA to get a global view of gene expression
+        rld_sex <- rlog(dds_sex1, blind=FALSE) 
+        data <- plotPCA(rld_sex, intgroup=c("population","devstage","sex"), returnData=TRUE)
+        percentVar <- round(100 * attr(data, "percentVar"))
+        
+        ggplot(data, aes(PC1, PC2, color=population, shape=sex)) +
+          geom_point(size=4, alpha=0.85) +
+          xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+          ylab(paste0("PC2: ",percentVar[2],"% variance")) +
+          theme_minimal()
+        #basically shows same patterns as above, not terribly informative
+
+        #For heat map of within sex comparisons
+        library("plyr") #for manipulating data frames
+        library("dplyr")
+        library("RColorBrewer")
+        library("pheatmap")
+        
+        Pop_F_df = as.data.frame(res_F) #turns results into dataframe to use in heatmap plot
+        Pop_F_df$Row.names = rownames(Pop_F_df)
+        
+        Pop_M_df = as.data.frame(res_M) #turns results into dataframe to use in heatmap plot
+        Pop_M_df$Row.names = rownames(Pop_M_df)
+        
+        sig_pop_F = res_F[which(res_F$padj <0.05), ] #pull out sig. ones from F-F
+        sig_pop_M = res_F[which(res_M$padj <0.05), ] #pull out sig. ones from M-M
+
+        sig_pop_F_df = as.data.frame(sig_pop_F) #turns results into dataframe to use in heatmap plot
+        sig_pop_F_df$Row.names = rownames(sig_pop_F_df)
+        dim(sig_pop_F_df) 
+        
+        sig_pop_M_df = as.data.frame(sig_pop_M) #turns results into dataframe to use in heatmap plot
+        sig_pop_M_df$Row.names = rownames(sig_pop_M_df)
+        dim(sig_pop_M_df) 
+        
+        sig_pop_FM = rbind(sig_pop_F_df, sig_pop_M_df) #combine these into one data frame
+        #sig_pop_FM1 = distinct(sig_pop_FM) #remove any duplicates
+        dim(sig_pop_FM)
+        
+        genesOfInterest_pop_FM = c(sig_pop_FM$Row.names) #pulls out gene names
+        length(genesOfInterest_pop_FM)
+
+        vsd = vst(dds_sex1, blind=F)
+        dds_sex1$combined = factor(paste0(dds_sex1$population, "-", dds_sex1$sex))
+        dds_sex1$combined <- factor(dds_sex1$combined, levels=c("NC-F","NC-M","WA-F","WA-M"), labels=c("NC-F","NC-M","WA-F","WA-M"))
+        
+        baseMeanPerGrp <- sapply( levels(dds_sex1$combined), function(lvl) rowMeans(counts(dds_sex1,normalized=TRUE)[,dds_sex1$combined == lvl] ) )
+        
+        head(baseMeanPerGrp) #check
+        dim(baseMeanPerGrp)
+
+        #pulls out normalized counts (mean of 3 reps) for all the sig. genes, so we can put them on the same plot
+        m = baseMeanPerGrp[genesOfInterest_pop_FM, c("NC-F","NC-M","WA-F","WA-M")]
+        
+        mat_scaled = t(apply(m, 1, scale))
+        
+        pheatmap(mat_scaled, labels_col=c("NC-F", "NC-M", "WA-F", "WA-M"), cluster_cols = F, cluster_rows = T)
+        
+        
+        ################################# Examine GO Enrichment ###############################
+
+        ### Mann-Whitney Tests for GO Analysis ###
+        
+        setwd("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/DGE/Enrichment")
+        library(ape)
+        
+        
+        # Importing data:
+
+        input="DGE_NCvsWA_neglogpval.csv" # two columns of comma-separated values: gene id, continuous measure of significance. To perform standard GO enrichment analysis based on Fisher's exact test, use binary measure (0 or 1, i.e., either sgnificant or not).
+        ## Make sure this is saved as Unix (LF) - open in TextWrangler, save as, change from Classic Mac to Unix (LF)!!!
+        
+        input="DGE_NCvsWA_F_neglogpval.csv"
+        
+        input="DGE_NCvsWA_M_neglogpval.csv"
+        
+        goAnnotations="gene_annotation_only.tab" # two-column, tab-delimited, one line per gene, multiple GO terms separated by semicolon. If you have multiple lines per gene, use nrify_GOtable.pl prior to running this script.
+        goDatabase="go.obo" # download from http://www.geneontology.org/GO.downloads.ontology.shtml
+        goDivision="BP" # either MF, or BP, or CC
+        source("gomwu.functions.R")
+
+        
+        # Calculating stats. It takes ~3 min for MF and BP. Do not rerun it if you just want to replot the data with different cutoffs, go straight to gomwuPlot. If you change any of the numeric values below, delete the files that were generated in previous runs first.
+        gomwuStats(input, goDatabase, goAnnotations, goDivision,
+                   perlPath="perl", # replace with full path to perl executable if it is not in your system's PATH already
+                   largest=0.1,  # a GO category will not be considered if it contains more than this fraction of the total number of genes
+                   smallest=5,   # a GO category should contain at least this many genes to be considered
+                   clusterCutHeight=0.25, # threshold for merging similar (gene-sharing) terms. 
+                   Alternative= # by default the MWU test is two-tailed; specify "g" or "l" of you want to test for "greater" or "less" instead
+        )
+
+        quartz() #creates new window for cluster tree
+        gomwuPlot(input,goAnnotations,goDivision,
+                  absValue=-log(0.05,10),  # genes with the measure value exceeding this will be counted as "good genes". Specify absValue=0.5 if you are doing Fisher's exact test for standard GO enrichment.
+                  level1=0.1, # FDR threshold for plotting. Specify level1=1 to plot all GO categories containing genes exceeding the absValue.
+                  level2=0.05, # FDR cutoff to print in regular (not italic) font.
+                  level3=0.01, # FDR cutoff to print in large bold font.
+                  txtsize=1.2,    # decrease to fit more on one page, or increase (after rescaling the plot so the tree fits the text) for better "word cloud" effect
+                  treeHeight=0.5, # height of the hierarchical clustering tree
+                  colors=c("dodgerblue2","firebrick1","skyblue","lightcoral") # these are default colors, un-remar and change if needed
+        )
+        
+        
 ------
 <div id='id-section10'/>
 ### Page 10:
