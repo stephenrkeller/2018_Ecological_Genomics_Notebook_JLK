@@ -35,9 +35,9 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 7: 2018-02-14](#id-section7). Using DESeq2 to assess differential gene expression
 * [Page 8: 2018-02-28](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
 * [Page 9: 2018-03-05](#id-section9). Code for Assignment 1 analysis
-* [Page 10:](#id-section10).
-* [Page 11:](#id-section11).
-* [Page 12:](#id-section12).
+* [Page 10: 2018-02-26 and 2018-02-28](#id-section10).
+* [Page 11: 2018-03-05](#id-section11).
+* [Page 12: 2018-03-07](#id-section12).
 * [Page 13:](#id-section13).
 * [Page 14:](#id-section14).
 * [Page 15:](#id-section15).
@@ -792,7 +792,7 @@ Here is my code for examining DGE between North Carolina and Western Australia b
                    largest=0.1,  # a GO category will not be considered if it contains more than this fraction of the total number of genes
                    smallest=5,   # a GO category should contain at least this many genes to be considered
                    clusterCutHeight=0.25, # threshold for merging similar (gene-sharing) terms. 
-                   Alternative= # by default the MWU test is two-tailed; specify "g" or "l" of you want to test for "greater" or "less" instead
+                   Alternative= "g" # by default the MWU test is two-tailed; specify "g" or "l" of you want to test for "greater" or "less" instead
         )
 
         quartz() #creates new window for cluster tree
