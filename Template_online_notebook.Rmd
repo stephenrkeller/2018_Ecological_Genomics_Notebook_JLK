@@ -956,9 +956,19 @@ Next we copied files for ADMIXTURE analysis to our working directories:
         
 And created a bash script to run ADMIXTURE for K= 1 - 10:
 
-        vim
-        [add this part in when connected to server]
-        chmod u+x ADMIX.sh
+        vim #to create new bash script
+        
+This is what it looked like:   
+
+        #!/bin/bash
+        for K in {1...10}
+        do
+        admixture -j 4 --cv 10 ~/mydata/out.recode.vcf.geno $K | tee log${K}.out
+        done
+        grep "CV" log*out >chooseK.txt
+        
+        
+        chmod u+x ADMIX.sh #to change file permissions
 
 ------
 <div id='id-section13'/>
