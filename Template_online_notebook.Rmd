@@ -35,9 +35,9 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 7: 2018-02-14](#id-section7). Using DESeq2 to assess differential gene expression
 * [Page 8: 2018-02-28](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
 * [Page 9: 2018-03-05](#id-section9). Code for Assignment 1 analysis
-* [Page 10: 2018-02-26 and 2018-02-28](#id-section10).
-* [Page 11: 2018-03-05](#id-section11).
-* [Page 12: 2018-03-07](#id-section12).
+* [Page 10: 2018-02-26 and 2018-02-28](#id-section10). Intro to population genomics
+* [Page 11: 2018-03-05](#id-section11). Continuing with working with vcf files
+* [Page 12: 2018-03-07](#id-section12). Continuing with exploring allele frequencies
 * [Page 13:](#id-section13).
 * [Page 14:](#id-section14).
 * [Page 15:](#id-section15).
@@ -812,10 +812,154 @@ Here is my code for examining DGE between North Carolina and Western Australia b
 ### Page 10:
 ------
 <div id='id-section11'/>
-### Page 11:
+### Page 11: 2018-05-05: Continuing with working with vcf files
+
+Today, we compared different methods to identify SNPs from the beetle RNAseq data.
+
+        cd /data/project_data/beetles/snps
+        
+Using vcftools to process the vcf file to retain only biallelic SNPs, remove SNPs below 0.01 freq, retain only high quality SNPs, remove SNPs with >80% missing data, output heterozygosity measure:
+
+        vcftools --vcf OTAU_2018_samtools.vcf --min-alleles 2 --max-alleles 2 --maf 0.01 --minGQ 20 --max-missing 0.8 --het --out ~/mydata/samtools0.8
+        #output: Parameters as interpreted:
+        	--vcf OTAU_2018_samtools.vcf
+        	--maf 0.01
+        	--max-alleles 2
+        	--min-alleles 2
+        	--minGQ 20
+        	--max-missing 0.8
+        	--het
+        	--out /users/j/k/jkostyun/mydata/samtools0.8
+        
+        After filtering, kept 72 out of 72 Individuals
+        Outputting Individual Heterozygosity
+        After filtering, kept 117 out of a possible 611928 Sites
+        Run Time = 19.00 seconds
+        
+Testing how this differs by changing the quality requirements:
+
+        vcftools --vcf OTAU_2018_samtools.vcf --min-alleles 2 --max-alleles 2 --maf 0.01 --minGQ 10 --max-missing 0.8 --het --out ~/mydata/samtools0.8v2
+        #output: Parameters as interpreted:
+        	--vcf OTAU_2018_samtools.vcf
+        	--maf 0.01
+        	--max-alleles 2
+        	--min-alleles 2
+        	--minGQ 10
+        	--max-missing 0.8
+        	--het
+        	--out /users/j/k/jkostyun/mydata/samtools0.8v2
+        
+        After filtering, kept 72 out of 72 Individuals
+        Outputting Individual Heterozygosity
+        After filtering, kept 83120 out of a possible 611928 Sites
+        Run Time = 20.00 seconds
+        
+Next we examined the inbreeding coefficient as another way to assess retention of SNPs. In R:
+
+        df=read.table("samtools0.8v2.het", header=T)
+        str(df)
+        #output: 
+        'data.frame':	72 obs. of  5 variables:
+         $ INDV   : Factor w/ 72 levels "IT_AD4_F1_","IT_AD4_F2_",..: 1 2 3 4 5 6 8 9 10 7 ...
+         $ O.HOM. : int  66334 59874 69153 61780 67300 69025 64488 73824 68621 67290 ...
+         $ E.HOM. : num  66365 60720 69302 61431 67564 ...
+         $ N_SITES: int  70922 64890 74059 65648 72209 73834 70006 81319 75543 73303 ...
+         $ F      : num  -0.00683 -0.20302 -0.03141 0.08282 -0.05684 ...
+         summary(df$F)
+         #output:
+         Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+    -0.748830 -0.193505  0.003465 -0.015433  0.163995  0.320880 
+        sd(df$F) #0.2154291
+        
+Back to command-line. As a class, we determined that using the read2snps method and max missing data 0.8 works best:
+
+      vcftools --vcf OTAU_2018_reads2snps_DP10GP95.vcf --min-alleles 2 --max-alleles 2 --maf 0.01  --max-missing 0.8 --recode --out ~/mydata/OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf
+      #output: Parameters as interpreted:
+      	--vcf OTAU_2018_reads2snps_DP10GP95.vcf
+      	--maf 0.01
+      	--max-alleles 2
+      	--min-alleles 2
+      	--max-missing 0.8
+      	--out /users/j/k/jkostyun/mydata/OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf
+      	--recode
+      
+      After filtering, kept 72 out of 72 Individuals
+      Outputting VCF file...
+      After filtering, kept 133291 out of a possible 33366006 Sites
+      Run Time = 89.00 seconds
+      
+      grep "IT" /data/project_data/beetles/metadata/cols_data.txt #find IT data
+      grep "IT" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >IT.inds #pull out IT data and create new file
+      vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep IT.inds --freq2 --out IT
+      #output: Parameters as interpreted:
+        	--vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf
+        	--keep IT.inds
+        	--freq2
+        	--out IT
+        
+        Keeping individuals in 'keep' list
+        After filtering, kept 24 out of 72 Individuals
+        Outputting Frequency Statistics...
+        After filtering, kept 133291 out of a possible 133291 Sites
+        Run Time = 2.00 seconds
+        
+        head IT.frq #check file
+        
 ------
 <div id='id-section12'/>
-### Page 12:
+### Page 12: 2018-05-07: Continuing with exploring allele frequencies
+
+Today, we continued exploring the beetle RNAseq data with respect to SNPs by pulling out data for the remaining populations.
+
+        grep "NC" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >NC.inds
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep NC.inds --freq2 --out NC
+        grep "WA" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >WA.inds
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep WA.inds --freq2 --out WA
+        #want to remove SNPs that are linked, so here retaining only one SNP per 1000bp
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --thin 1000 --recode
+
+After getting allele frequencies for each population separately, we visualized minor allele frequency spectrum plots in R.
+
+        IT = read.table("IT.frq", skip=1, header=F) 
+        head(IT) #check
+        dim(IT) #check size
+        #lists gene name, bp position of SNP in gene, how many alelles at SNP, number of alleles sampled in population, reference allele freq, minor allele freq
+        
+        NC = read.table("NC.frq", skip=1, header=F)
+        WA = read.table("WA.frq", skip=1, header=F)
+        
+        #hist(IT$V6, col="red", main="MAF in IT Population", xlab="Minor Allele")
+        
+        IT = hist(IT$V6, plot=F)
+        IT$counts = IT$counts/sum(IT$counts)
+        plot(IT$counts, type="l", main="Normalized MAF in IT Population")
+        
+        NC = hist(NC$V6, plot=F)
+        NC$counts = NC$counts/sum(NC$counts)
+        plot(NC$counts, type="l", main="Normalized MAF in NC Population")
+        
+        WA = hist(WA$V6, plot=F)
+        WA$counts = WA$counts/sum(WA$counts)
+        plot(WA$counts, type="l", main="Normalized MAF in WA Population")
+        
+        #plot all together
+        plot(IT$counts, type="l", col="red", lwd=1.5, ylim=c(0,0.5), main="Normalized MAF among Populations")
+        lines(NC$counts, col="blue", lwd=1.5)
+        lines(WA$counts, col="green", lwd=1.5)
+        
+Next we copied files for ADMIXTURE analysis to our working directories:
+
+        cp /data/project_data/beetles/metadata/beetles.pop .
+        cp /data/scripts/beetle.spid .
+        cp /data/scripts/vcf2geno.sh .
+        cp /data/project_data/beetles/snps/out.recode.vcf.geno .
+        
+And created a bash script to run ADMIXTURE for K= 1 - 10:
+
+        vim
+        [add this part in when connected to server]
+        chmod u+x ADMIX.sh
+
 ------
 <div id='id-section13'/>
 ### Page 13:
