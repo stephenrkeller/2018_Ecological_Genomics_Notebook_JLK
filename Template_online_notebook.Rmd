@@ -38,7 +38,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 10: 2018-02-26 and 2018-02-28](#id-section10). Intro to population genomics
 * [Page 11: 2018-03-05](#id-section11). Continuing with working with vcf files
 * [Page 12: 2018-03-07](#id-section12). Continuing with exploring allele frequencies
-* [Page 13:](#id-section13).
+* [Page 13: 2018-03-19](#id-section13). Using SNP data to examine population structure
 * [Page 14:](#id-section14).
 * [Page 15:](#id-section15).
 * [Page 16:](#id-section16).
@@ -972,7 +972,93 @@ This is what it looked like:
 
 ------
 <div id='id-section13'/>
-### Page 13:
+### Page 13: 2018-03-19: Using SNP data to examine population structure
+
+Today, we continued getting our SNP data ready to use in ADMIXTURE to examine population structure. This included slightly revising our vcf2geno.sh script, which calls to the PGDSpider program to convert our SNP data in vcf format to geno format which is required by ADMIXTURE:
+
+       vim vcf2geno.sh #to edit script to look like this:
+       
+        #!/bin/bash
+
+        java -Xmx2G -jar /data/popgen/PGDSpider_2.0.9.0/PGDSpider2-cli.jar -inputfile ~/mydata/SNPs/out.recode.vcf -inputformat VCF -outputfile ~/mydata/SNPs/out.recode.vcf.geno -outputformat EIGENSOFT -spid ~/myscripts/beetle.spid
+        
+This output format codes SNPs as: 0=homozygous ref, 1=heterozgous, 2=homozygous derived, 9=missing data. 
+
+Next, we slightly updated our ADMIX.sh script to make it actually run. Here, the cv refers to cross validation, where the program divides the data into n groups. It then cycles though, masking one group at a time: it trains on the 'available' data, and then tests its assignment model with the masked group. Well supported estimates of K will return lower values of cv error (i.e. the model is better at predicting the assignment of the masked group).
+       
+       vim ADMIX.sh   
+       
+       #!/bin/bash
+
+        for K in {1..10}
+        
+        do
+        
+        admixture -j4 --cv=10 ~/mydata/SNPs/out.recode.vcf.geno $K | tee log${K}.out
+        
+        done
+        
+        grep "CV" log*out >chooseK.txt
+       
+The output from ADMIX.sh includes multiple types of files: .P includes allele freq for each K, .Q provides ancestry coeff for each K, and .log is logged output for each K. It then also searches within the log files to find the cv error for eack value of K, and puts this into the chooseK.txt file. Here is what that file looked like:
+
+        cat chooseK.txt
+        
+        log10.out:CV error (K=10): 0.74078
+        log1.out:CV error (K=1): 0.44089
+        log2.out:CV error (K=2): 0.43635
+        log3.out:CV error (K=3): 0.44473
+        log4.out:CV error (K=4): 0.47987
+        log5.out:CV error (K=5): 0.51791
+        log6.out:CV error (K=6): 0.55534
+        log7.out:CV error (K=7): 0.58280
+        log8.out:CV error (K=8): 0.62599
+        log9.out:CV error (K=9): 0.66978
+        
+Based on these cv errors, we want to focus on K=2 through K=4. We therefore moved the .Q files to our local computer so as to be able to visualize the data using the R package pophelper:
+
+        install.packages(c("Cairo","ggplot2","gridExtra","gtable","tidyr","devtools"),dependencies=T)
+        
+However, I needed to install an earlier version of Cairo than the one that is automatically called to in the above install command, as well as install X11 to properly load the Cairo package. Once I did that, I could install and load in the pophelper package:
+
+        devtools::install_github('royfrancis/pophelper')
+        
+We also moved cols_data.text, which contains metadata for all the beetle individuals, to our local computers for use in R.
+
+        setwd("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics")
+
+        library(pophelper)
+        
+        admixfiles=list.files(path=("ADMIXTURE/"),full.names=T)
+        admixlist=readQ(files=admixfiles,filetype="basic")
+        
+        # metadata: sample id and pop from beetle metadata file
+        metadata=read.table("cols_data.txt",header=T)
+        
+        # format metadata to a data frame and ind variables as chars. for plotting
+        metadata2=data.frame(sampleid=metadata[,1], population=metadata[,2])
+        
+        metadata2$sampleid=as.character(metadata2$sampleid)
+        metadata2$population=as.character(metadata2$population)
+        
+        # add in the sample id to the different Q files for plotting
+        if(length(unique(sapply(admixlist,nrow)))==1)
+          admixlist <- lapply(admixlist,"rownames<-",metadata2$sampleid)
+        
+        head(admixlist[[3]]) #peak at what the ancestry assignments for K=4 look like (K=4 is in 3rd column in this datafile)
+        
+        p <- plotQ(admixlist[c(1,2,3)],
+                   returnplot=T,exportplot=T,quiet=T,basesize=11, imgoutput="join", 
+                   showyaxis=T, showticks=T, panelspacer=0.4, useindlab=F, showindlab=F, 
+                   grplab=metadata2[2], grplabsize=4, linesize=1, barsize=1, pointsize=3, 
+                   panelratio=c(4,1), divsize = 0.75, pointcol="white", showtitle=T, 
+                   titlelab="ADMIXTURE analysis on O. tauri, SNPs thinned to 1 per kb", 
+                   splab=c("K=2","K=3","K=4"), outputfilename="ADMIXTURE_Otauri",
+                   imgtype="pdf",height=3,width=25)
+        
+        plot(p$plot[[1]])
+
+
 ------
 <div id='id-section14'/>
 ### Page 14:
