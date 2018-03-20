@@ -809,10 +809,34 @@ Here is my code for examining DGE between North Carolina and Western Australia b
         
 ------
 <div id='id-section10'/>
-### Page 10:
+### Page 10: 2018-02-26 and 2018-02-28: Intro to population genomics
+
+I actually missed class this week as I was in Amherst, but here's my followup.
+
+First, we need to convert our data in .sam format to .bam format, which is the binary version. Then we can sort it, remove unpaired reads, remove PCR duplicates, and index. Make this as a bash script called CallSNPs.sh:
+
+        #!/bin/bash
+
+        samtools view -@ 4 -bS WA_PP1_F1_bwamem.sam > WA_PP1_F1_bwamem.bam #convert to bam
+        samtools flagstat WA_PP1_F1_bwamem.bam #gives summary
+        samtools depth WA_PP1_F1_bwamem.bam #seq depth
+        samtools fixmate -@ 4 WA_PP1_F1_bwamem.bam WA_PP1_F1_bwamem.fm.bam #remove unpaired
+        samtools sort -@ 4 WA_PP1_F1_bwamem.fm.bam -o WA_PP1_F1_bwamem.fm.sort.bam #sort reads
+        samtools rmdup WA_PP1_F1_bwamem.fm.sort.bam WA_PP1_F1_bwamem.fm.sort.rmdup.bam #remove PCR duplicates
+        samtools index WA_PP1_F1_bwamem.fm.sort.bam #indexes file to easier computations
+        
+Once done, we want to look at our data before proceeding:
+
+        samtools tview WA_PP1_F1_bwamem.fm.sort.bam
+
+Next, we want to map our reads to the reference, which we do my adding to our CallSNPs.sh
+
+        bcftools mpileup -Ou -f /data/project_data/beetles/reference/OTAU.fna ~/mydata/WA_PP1_F1_bwamem.fm.sorted.bam --threads 4 --skip-indel --annotate AD,DP | bcftools call -Ov -mv --format-fields GQ,GP > WA_PP1_F1.vcf
+        
+
 ------
 <div id='id-section11'/>
-### Page 11: 2018-05-05: Continuing with working with vcf files
+### Page 11: 2018-03-05: Continuing with working with vcf files
 
 Today, we compared different methods to identify SNPs from the beetle RNAseq data.
 
