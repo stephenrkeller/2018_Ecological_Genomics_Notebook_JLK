@@ -1129,7 +1129,7 @@ To then run the script, which will take a long time so we used screen:
 
 To begin with, I used the OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf file that we had previously generated as a class. It contains beetle SNPs that were filtered to be biallelic, rare alleles under 0.01 freq were removed, and sites with more than 80% missing data were removed.
 
-From here, I created a new bash script to further filter this file using the --thin option, which allows us to set how many SNPs per given region size are retained (related to LD). Here is that script:
+From here, I created a new bash script to further filter this file using the --thin option, which allows us to set how many SNPs per given region size are retained (related to linkage). Here is that script:
 
         #!/bin/bash
         
@@ -1139,12 +1139,255 @@ From here, I created a new bash script to further filter this file using the --t
         vcftools --vcf ~/mydata/SNPs/OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --thin $thin --recode --out ~/mydata/SNPs/OTAU_2018_reads2SNPs${thin}
         done
         
+Next, I converted each of these .vcf files to .geno format to use in ADMIXTURE, by editing our vcf2geno.sh script. I wasn't entirely sure how to specify the different input and output files, so I just repeated the command:
 
+        java -Xmx2G -jar /data/popgen/PGDSpider_2.0.9.0/PGDSpider2-cli.jar -inputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs10.recode.vcf -inputformat VCF -outputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs10.recode.geno -outputformat EIGENSOFT -spid ~/myscripts/beetle.spid
+
+        java -Xmx2G -jar /data/popgen/PGDSpider_2.0.9.0/PGDSpider2-cli.jar -inputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs100.recode.vcf -inputformat VCF -outputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs100.recode.geno -outputformat EIGENSOFT -spid ~/myscripts/beetle.spid
+        
+        java -Xmx2G -jar /data/popgen/PGDSpider_2.0.9.0/PGDSpider2-cli.jar -inputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs1000.recode.vcf -inputformat VCF -outputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs1000.recode.geno -outputformat EIGENSOFT -spid ~/myscripts/beetle.spid
+        
+        java -Xmx2G -jar /data/popgen/PGDSpider_2.0.9.0/PGDSpider2-cli.jar -inputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs10000.recode.vcf -inputformat VCF -outputfile ~/mydata/SNPs/OTAU_2018_reads2SNPs10000.recode.geno -outputformat EIGENSOFT -spid ~/myscripts/beetle.spid
+
+
+From here, I edited our ADMIX.sh script (saved as ADMIX2.sh) to estimate cv errors for each of these .vcf files. Again, I wasn't sure how to correctly specify more than one input file, so I just repeated the command. And I made sure to edit the log file names, so the grep function would summarize from the correct files:
+
+        #!bin/bash
+        
+        for K in {1..10}
+        
+        do
+        
+        admixture -j4 --cv=10 ~/mydata/SNPs/OTAU_2018_reads2SNPs10.recode.geno $K | tee log10_${K}.out
+        
+        done
+        
+        grep "CV" log10*out >chooseK_10.txt
+        
+        for K in {1..10}
+        
+        do
+        
+        admixture -j4 --cv=10 ~/mydata/SNPs/OTAU_2018_reads2SNPs100.recode.geno $K | tee log100_${K}.out
+        
+        done
+        
+        grep "CV" log100*out >chooseK_100.txt
+        
+        
+        for K in {1..10}
+        
+        do
+        
+        admixture -j4 --cv=10 ~/mydata/SNPs/OTAU_2018_reads2SNPs1000.recode.geno $K | tee log1000_${K}.out
+        
+        done
+        
+        grep "CV" log1000*out >chooseK_1000.txt
+        
+        for K in {1..10}
+        
+        do
+        
+        admixture -j4 --cv=10 ~/mydata/SNPs/OTAU_2018_reads2SNPs10000.recode.geno $K | tee log10000_${K}.out
+        
+        done
+        
+        grep "CV" log10000*out >chooseK_10000.txt
+        
+        
+Here are the chooseK files:
+
+        cat chooseK_10.txt
+        
+        log10_10.out:CV error (K=10): 0.74766
+        log10_1.out:CV error (K=1): 0.45123   #good
+        log10_2.out:CV error (K=2): 0.44376   #best
+        log10_3.out:CV error (K=3): 0.45275   #good
+        log10_4.out:CV error (K=4): 0.48883   #good
+        log10_5.out:CV error (K=5): 0.51712
+        log10_6.out:CV error (K=6): 0.56384
+        log10_7.out:CV error (K=7): 0.59017
+        log10_8.out:CV error (K=8): 0.63056
+        log10_9.out:CV error (K=9): 0.65263
+        
+        cat chooseK_100.txt
+        
+        log100_10.out:CV error (K=10): 0.75042
+        log100_1.out:CV error (K=1): 0.45050   #good
+        log100_2.out:CV error (K=2): 0.44345   #best
+        log100_3.out:CV error (K=3): 0.45297   #good
+        log100_4.out:CV error (K=4): 0.48985   #good
+        log100_5.out:CV error (K=5): 0.51799
+        log100_6.out:CV error (K=6): 0.55990
+        log100_7.out:CV error (K=7): 0.59106
+        log100_8.out:CV error (K=8): 0.63564
+        log100_9.out:CV error (K=9): 0.65572
+        
+        cat chooseK_1000.txt
+        
+        log1000_10.out:CV error (K=10): 0.74078
+        log1000_1.out:CV error (K=1): 0.44089   #good
+        log1000_2.out:CV error (K=2): 0.43635   #best
+        log1000_3.out:CV error (K=3): 0.44470   #good
+        log1000_4.out:CV error (K=4): 0.47987   #good
+        log1000_5.out:CV error (K=5): 0.51791
+        log1000_6.out:CV error (K=6): 0.55534
+        log1000_7.out:CV error (K=7): 0.58280
+        log1000_8.out:CV error (K=8): 0.62599
+        log1000_9.out:CV error (K=9): 0.66978
+        
+        cat chooseK_10000.txt
+        
+        log10000_10.out:CV error (K=10): 0.74706
+        log10000_1.out:CV error (K=1): 0.43924   #good
+        log10000_2.out:CV error (K=2): 0.43462   #best
+        log10000_3.out:CV error (K=3): 0.44418   #good
+        log10000_4.out:CV error (K=4): 0.48223   #good
+        log10000_5.out:CV error (K=5): 0.51968
+        log10000_6.out:CV error (K=6): 0.55327
+        log10000_7.out:CV error (K=7): 0.59704
+        log10000_8.out:CV error (K=8): 0.62966
+        log10000_9.out:CV error (K=9): 0.65378
+
+Based on these results, K is between 1 and 4, with K=2 the best estimate. I therefore moved the .Q files for K=2 through K=4 to my local directory to use in R package pophelper (K=1 is literally one group, so I disreguarded it for this exercise). 
+
+        library(pophelper)
+        
+        admixfiles=list.files(path=("ADMIXTURE2/"),full.names=T) #in ADMIXTURE2, I put the .Q files for K=2, K=3, and K=4 from each of the thin runs: 10, 100, 1000, and 10000
+        admixlist=readQ(files=admixfiles,filetype="basic")
+
+        # metadata: sample id and pop from beetle.pop file
+        metadata=read.table("cols_data.txt",header=T)
+        
+        # format metadata to a data frame and ind variables as chars. for plotting
+        metadata2=data.frame(sampleid=metadata[,1], population=metadata[,2])
+        
+        metadata2$sampleid=as.character(metadata2$sampleid)
+        metadata2$population=as.character(metadata2$population)
+        
+        # add in the sample id to the different Q files for plotting
+        if(length(unique(sapply(admixlist,nrow)))==1)
+          admixlist <- lapply(admixlist,"rownames<-",metadata2$sampleid)
+        
+        head(admixlist[[3]]) #peak at what the ancestry assignments for K=4 look like (K=4 is in 3rd column in this datafile)
+        
+        p.10 <- plotQ(admixlist[c(1,2,3)],     #plot for 1 SNP in 10bp
+                   returnplot=T,exportplot=T,quiet=T,basesize=11, imgoutput="join", 
+                   showyaxis=T, showticks=T, panelspacer=0.4, useindlab=F, showindlab=F, 
+                   grplab=metadata2[2], grplabsize=4, linesize=1, barsize=1, pointsize=3, 
+                   panelratio=c(4,1), divsize = 0.75, pointcol="white", showtitle=T, 
+                   titlelab="ADMIXTURE analysis on O. tauri, SNPs 1 in 10bp", 
+                   splab=c("K=2","K=3","K=4"), outputfilename="ADMIXTURE_Otauri_10",
+                   imgtype="pdf",height=3,width=15)
+        
+        plot(p.10$plot[[1]])
+        
+        p.100 <- plotQ(admixlist[c(4,5,6)],    #plot for 1 SNP in 100bp
+                   returnplot=T,exportplot=T,quiet=T,basesize=11, imgoutput="join", 
+                   showyaxis=T, showticks=T, panelspacer=0.4, useindlab=F, showindlab=F, 
+                   grplab=metadata2[2], grplabsize=4, linesize=1, barsize=1, pointsize=3, 
+                   panelratio=c(4,1), divsize = 0.75, pointcol="white", showtitle=T, 
+                   titlelab="ADMIXTURE analysis on O. tauri, SNPs 1 in 100bp", 
+                   splab=c("K=2","K=3","K=4"), outputfilename="ADMIXTURE_Otauri_100",
+                   imgtype="pdf",height=3,width=15)
+        
+        plot(p.100$plot[[1]])
+        
+        p.1000 <- plotQ(admixlist[c(7,8,9)],    #plot for 1 SNP in 1Kb
+                   returnplot=T,exportplot=T,quiet=T,basesize=11, imgoutput="join", 
+                   showyaxis=T, showticks=T, panelspacer=0.4, useindlab=F, showindlab=F, 
+                   grplab=metadata2[2], grplabsize=4, linesize=1, barsize=1, pointsize=3, 
+                   panelratio=c(4,1), divsize = 0.75, pointcol="white", showtitle=T, 
+                   titlelab="ADMIXTURE analysis on O. tauri, SNPs 1 in 1kb", 
+                   splab=c("K=2","K=3","K=4"), outputfilename="ADMIXTURE_Otauri_1000",
+                   imgtype="pdf",height=3,width=15)
+        
+        plot(p.1000$plot[[1]])
+        
+        p.10000 <- plotQ(admixlist[c(10,11,12)],   #plot for 1 SNP in 10Kb
+                   returnplot=T,exportplot=T,quiet=T,basesize=11, imgoutput="join", 
+                   showyaxis=T, showticks=T, panelspacer=0.4, useindlab=F, showindlab=F, 
+                   grplab=metadata2[2], grplabsize=4, linesize=1, barsize=1, pointsize=3, 
+                   panelratio=c(4,1), divsize = 0.75, pointcol="white", showtitle=T, 
+                   titlelab="ADMIXTURE analysis on O. tauri, SNPs 1 in 10kb", 
+                   splab=c("K=2","K=3","K=4"), outputfilename="ADMIXTURE_Otauri_10000",
+                   imgtype="pdf",height=3,width=15)
+        
+        plot(p.10000$plot[[1]])
+
+To examine pi, I first specified each population:
+
+        grep "IT" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >IT.inds 
+        grep "NC" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >NC.inds 
+        grep "WA" /data/project_data/beetles/metadata/cols_data.txt | cut -f 1 >WA.inds 
+        
+Then I calculated pi for each site for each population using vcftools, and transferred the output files to my local directory to get summary statistics.
+        
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep IT.inds --site-pi --out IT.pi
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep NC.inds --site-pi --out NC.pi
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep WA.inds --site-pi --out WA.pi
+        
+In R:
+
+        ### Examining pi for each population ###
+
+        IT.pi <- read.delim("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Assignments-Project/Assignment 2 PopStucture/IT.pi.sites.pi")
+        NC.pi <- read.delim("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Assignments-Project/Assignment 2 PopStucture/NC.pi.sites.pi")
+        WA.pi <- read.delim("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Assignments-Project/Assignment 2 PopStucture/WA.pi.sites.pi")
+        
+        summary(IT.pi$PI)
+        sd(IT.pi$PI)
+        summary(NC.pi$PI)
+        sd(NC.pi$PI)
+        summary(WA.pi$PI)
+        sd(WA.pi$PI)
+        
+        IT.pi$POP = "IT"
+        NC.pi$POP = "NC"
+        WA.pi$POP = "WA"
+        All.pi = rbind(IT.pi, NC.pi, WA.pi) #combine these into one data frame
+        
+        fit = aov(All.pi$PI ~ All.pi$POP) #test for sig. differences
+        summary(fit)
+        TukeyHSD(fit)
+        
+        p1=ggplot(All.pi, aes(PI, fill=POP)) + geom_histogram(binwidth = 0.035, position="dodge") + expand_limits(x = c(0, 0.5), y = c(0, 17000)) + labs(x="Site Nucleotide Diversity", y="Count") + theme_bw() + theme(legend.position="right") + geom_linerange(x=0.2141, ymax=20000, ymin=0, colour="cadetblue3", linetype=1) + geom_linerange(x=0.2027, ymax=20000, ymin=0, colour="springgreen4", linetype=1) + geom_linerange(x=0.223, ymax=20000, ymin=0, colour="red3", linetype=1) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + geom_hline(yintercept=0) #plot all in single histogram
 
 
 ------
 <div id='id-section16'/>
-### Page 16:
+### Page 16: 2018-03-26: Continuing with Bayescan
+
+With any Bayesian analyses, it's very very important to examine the results of the MCMC run to make sure it actually worked how we think it did. To do so, we copied the relevant output files from Bayescan to our local computer as well as SNP position information:
+
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --kept-sites  #to get SNP site info
+        
+Next, we examined the output files in R:
+
+        setwd("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan")
+
+        ### Import relevant output files from Bayescan ###
+        Sites <- read.delim("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/out.kept.sites")
+        
+        Bayescan10_fst <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan10_fst.txt", sep="")
+        Bayescan10_LL <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan10.sel", sep="")
+
+        ### Check MCMC ###
+        
+        plot(Bayescan10_LL$logL, type="o", col="grey", ylab="Log Likelihood")
+        #want this plot to look like a 'fuzzy caterpillar', including NOT having an increasing trend at the beginning which would indicate that the burn-in was not high enough
+        
+        par(mfrow=c(3,1), mar=c(2,2,2,1)) #check out all three populations
+        plot(Bayescan10_LL$Fst1, type="o", col="grey", ylab="Fst1")
+        plot(Bayescan10_LL$Fst2, type="o", col="blue", ylab="Fst2")
+        plot(Bayescan10_LL$Fst3, type="o", col="red", ylab="Fst3")
+        
+        summary(Bayescan10_fst) #want to see whether there are any SNPs that show evidence of selection
+
+
+
+
 ------
 <div id='id-section17'/>
 ### Page 17:
