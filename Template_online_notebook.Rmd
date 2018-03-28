@@ -41,8 +41,8 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 13: 2018-03-19](#id-section13). Using SNP data to examine population structure
 * [Page 14: 2018-03-21](#id-section14). Using Bayescan to identify loci under differential selection
 * [Page 15: 2018-03-22](#id-section15). Code for Assignment 2 analysis
-* [Page 16:](#id-section16).
-* [Page 17:](#id-section17).
+* [Page 16: 2018-03-26](#id-section16). Continuing with Bayescan
+* [Page 17: 2018-03-28](#id-section17). Identifying outliers from Bayescan
 * [Page 18:](#id-section18).
 * [Page 19:](#id-section19).
 * [Page 20:](#id-section20).
@@ -1386,11 +1386,74 @@ Next, we examined the output files in R:
         summary(Bayescan10_fst) #want to see whether there are any SNPs that show evidence of selection
 
 
-
-
 ------
 <div id='id-section17'/>
-### Page 17:
+### Page 17: 2018-03-28: Identifying outliers from Bayescan
+
+Today, we continued our analysis with Bayescan, including updating the R script:
+
+        setwd("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan")
+
+        ### Import relevant output files from Bayescan ###
+        
+        Sites <- read.delim("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/out.kept.sites")
+        
+        #these runs used a prior of 1 SNP in 1000bp assumed to be under selection
+        #LL files include sampled likelihood values for each population
+        #fst files include Fst values for all included loci, want to focus on alpha which indicate effect of selection on locus accounting for expected Fst due to population structure
+        
+        Bayescan10_fst <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan10_fst.txt", sep="")
+        Bayescan10_LL <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan10.sel", sep="")
+        
+        Bayescan20_fst <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan20_fst.txt", sep="")
+        Bayescan20_LL <- read.csv("~/Documents/Academic-Research/UVM/Courses/Ecological Genomics/Data/Pop_Genomics/Bayescan/Bayescan20.sel", sep="")
+        
+        
+        ### Check MCMC ###
+        
+        plot(Bayescan10_LL$logL, type="o", col="grey", ylab="Log Likelihood", xlim=c(0,200))
+        #want this plot to look like a 'fuzzy catepillar', including NOT having an increasing trend at the beginning which would indicate that the burn-in was not high enough, also make sure there isn't alot of autocorrelation in ll samples
+        
+        par(mfrow=c(3,1), mar=c(2,2,2,1)) #check out all three populations
+        plot(Bayescan10_LL$Fst1, type="o", col="grey", ylab="Fst1")
+        plot(Bayescan10_LL$Fst2, type="o", col="blue", ylab="Fst2")
+        plot(Bayescan10_LL$Fst3, type="o", col="red", ylab="Fst3")
+        
+        par(mfrow=c(3,1), mar=c(2,2,2,1)) #check out all three populations
+        plot(Bayescan20_LL$Fst1, type="o", col="grey", ylab="Fst1")
+        plot(Bayescan20_LL$Fst2, type="o", col="blue", ylab="Fst2")
+        plot(Bayescan20_LL$Fst3, type="o", col="red", ylab="Fst3")
+        
+        
+        ### Check summary stats of Fst values across loci ###
+        
+        summary(Bayescan10_fst) #want to see whether there are any SNPs that show evidence of selection
+        summary(Bayescan20_fst)
+        
+        
+        ### Combine locus info with Fst data ###
+        
+        Fst_sites_10 = cbind(Sites, Bayescan10_fst)
+        Fst_sites_20 = cbind(Sites, Bayescan20_fst)
+        
+        Fst_sites_10$log10q = -log10(Fst_sites_10$qval)
+        Fst_sites_20$log10q = -log10(Fst_sites_20$qval)
+        
+        FDR = 0.01
+        
+        candsnps_pr1000 = Fst_sites_10[which(Fst_sites_10$log10q>(-log10(FDR))),]
+        dim(candsnps_pr1000) #check number of SNPs
+        table(droplevels(candsnps_pr1000$CHROM)) #returns transcript for outliers
+        
+        plot(Fst_sites_10$fst, Fst_sites_10$alpha, xlab="Fst", ylab="alpha")
+        points(candsnps_pr1000$fst, candsnps_pr1000$alpha, col="red", pch=16) #overlay sig. SNPs
+        
+        write.table(candsnps_pr1000$CHROM, "Bayescan10_pr1000_candSNPs.txt", quote=F, row.names=F, col.names=F) #export transcript list
+        
+Back in the terminal, we imported the "Bayescan10_pr1000_candSNPs.txt" file for further analysis. This included searching the O. taurus gene annotation file for potential functions of the genes in which the outlier SNP occur. Here, this is saying to search for the items in the "Bayescan10_pr1000_candSNPs.txt" file in the "/data/poject_data/OTAU.Models.gff3" file, and then search within those results for only annotations for "gene". Finally, then export those results to a new file. 
+
+        grep -f ~/mydata/SNPs/Bayescan10_pr1000_candSNPs.txt /data/poject_data/OTAU.Models.gff3 | grep "gene" > ~/mydata/SNPs/Bayescan10_pr1000_candGenes.txt 
+
 ------
 <div id='id-section18'/>
 ### Page 18:
