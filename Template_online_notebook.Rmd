@@ -33,7 +33,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 5: 2018-02-05 and 2018-02-06](#id-section5). Examining SAM file and troubleshooting 
 * [Page 6: 2018-02-07](#id-section6). Exploring expression differences using DESeq2
 * [Page 7: 2018-02-14](#id-section7). Using DESeq2 to assess differential gene expression
-* [Page 8: 2018-02-28](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
+* [Page 8: 2018-02-21](#id-section8). Continuing with DESEq2 and also clustering/module ID with WGCNA
 * [Page 9: 2018-03-05](#id-section9). Code for Assignment 1 analysis
 * [Page 10: 2018-02-26 and 2018-02-28](#id-section10). Intro to population genomics
 * [Page 11: 2018-03-05](#id-section11). Continuing with working with vcf files
@@ -43,9 +43,9 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 15: 2018-03-22](#id-section15). Code for Assignment 2 analysis
 * [Page 16: 2018-03-26](#id-section16). Continuing with Bayescan
 * [Page 17: 2018-03-28](#id-section17). Identifying outliers from Bayescan
-* [Page 18:](#id-section18).
-* [Page 19:](#id-section19).
-* [Page 20:](#id-section20).
+* [Page 18: 2018-04-13](#id-section18). Code for class project
+* [Page 19: 2018-04-16](#id-section19). Continuing analysis for class project
+* [Page 20: 2018-04-17](#id-section20). Code for class project, continued
 * [Page 21:](#id-section21).
 * [Page 22:](#id-section22).
 * [Page 23:](#id-section23).
@@ -1456,13 +1456,156 @@ Back in the terminal, we imported the "Bayescan10_pr1000_candSNPs.txt" file for 
 
 ------
 <div id='id-section18'/>
-### Page 18:
+### Page 18: 2018-04-13: Code for class project
+
+As demonstrated by Charlesworth et al. (1993), both directional and purifying selection can produce similar patterns of nucleotide diversity within genomes. In particular, selective sweeps and background selection (BGS) reduce neutral diversity in surrounding regions linked to mutations under selection. Especially because most mutations are expected to be deleterious, we suspect that some/many cases interpreted as positive selection may actually represent BGS. To test this as a class project, we will further examine how demographic history and different types of selection may have shaped genomic data from three sampled populations of horned beetles (Onthophagus taurus). For our part, we will identify mutations that are most likely to be deleterious and therefore subject to purifying selection. We expect that the amount of likely deleterious mutations will scale with the estimated effective population size (Ne), such that the highest number will be retained in the population with lowest Ne. 
+
+To begin with, we first need to make sure we have all the data. This includes reads from all three O. taurus populations, as well as from 3 outgroup species which we will use to call ancestral vs. derived alleles at SNP sites. These outgroups will be 2 additional Onthophagus species and related Oryctes borbonicus (RNAseq data available from NCBI SRA). We plan to map all of the reads/data to the same reference O. taurus transcriptome so as to get SNPs at the same sites across all taxa. 
+
+To download O. borbonicus data to the server, we first installed ascp and then called:
+
+        ~/.aspera/connect/bin/ascp -i ~/.aspera/connect/etc/asperaweb_id_dsa.openssh -k 1 -T -l200m anonftp@ftp.ncbi.nlm.nih.gov:/sra/sra-instant/reads/ByRun/sra/SRR/SRR297/SRR2970555/SRR2970555.sra /data/project_data/beetles/share/
+        
+This created a .sra file, so we used SRA Toolkit to convert to .gz:
+
+        fastq-dump  --gzip --split-files --skip-technical --read-filter pass SRR2970555.sra
+        #Read 130969021 spots for SRR2970555.sra
+        #Written 119147069 spots for SRR2970555.sra
+        
+        zcat SRR2970555_pass_1.fastq.gz | head -n20   #def fastq but looked kind of weird...
+        zcat SRR2970555_pass_2.fastq.gz | head -n20   #def fastq but seems to be NNN only
+
 ------
 <div id='id-section19'/>
-### Page 19:
+### Page 19: 2018-04-16: Continuing with analysis for class project
+
+Used FastQC to check overall quality of the split fastq files:        
+        
+        fastqc /data/project_data/beetles/share/SRR2970555_pass_1.fastq.gz -o .
+        fastqc /data/project_data/beetles/share/SRR2970555_pass_2.fastq.gz -o .
+        
+They actually looked pretty good, so I continued via Trimmomatic: 
+
+        #!/bin/bash
+      java -classpath /data/popgen/Trimmomatic-0.33/trimmomatic-0.33.jar org.usadellab.trimmomatic.TrimmomaticPE \
+                -threads 1 \
+                -phred33 \
+                 /data/project_data/beetles/share/SRR2970555_pass_1.fastq.gz \
+                 /data/project_data/beetles/share/SRR2970555_pass_2.fastq.gz \
+                 ~/mydata/2018_clean_reads/"SRR2970555_R1_clean_paired.fa" \
+                 ~/mydata/2018_clean_reads/"SRR2970555_R1_clean_unpaired.fa" \
+                 ~/mydata/2018_clean_reads/"SRR2970555_R2_clean_paired.fa" \
+                 ~/mydata/2018_clean_reads/"SRR2970555_R2_clean_unpaired.fa" \
+                 ILLUMINACLIP:/data/popgen/Trimmomatic-0.33/adapters/TruSeq3-PE.fa:2:30:10 \
+                 LEADING:28 \
+             TRAILING:28 \
+             SLIDINGWINDOW:6:28 \
+             HEADCROP:12 \
+             MINLEN:35 \
+             
+        #Output: Using PrefixPair: 'TACACTCTTTCCCTACACGACGCTCTTCCGATCT' and 'GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT'
+        ILLUMINACLIP: Using 1 prefix pairs, 0 forward/reverse sequences, 0 forward only sequences, 0 reverse only sequences
+        Input Read Pairs: 119147069 Both Surviving: 97273061 (81.64%) Forward Only Surviving: 9746129 (8.18%) Reverse Only Surviving: 3756697 (3.15%) Dropped: 8371182 (7.03%)
+        TrimmomaticPE: Completed successfully    
+        
+Checked quality again:
+
+        fastqc SRR2970555_R1_clean_paired.fa
+        fastqc SRR2970555_R2_clean_paired.fa
+        
+And mapped to O. tau reference using both aln and mem functions, for comparison:
+
+        bwa aln /data/project_data/beetles/reference/OTAU.fna  ~/mydata/2018_clean_reads/SRR2970555_R1_clean_paired.fa  ~/mydata/2018_clean_reads/SRR2970555_R2_clean_paired.fa > Obor_SRR_bwaaln.sam
+        
+        bwa mem /data/project_data/beetles/reference/OTAU.fna  ~/mydata/2018_clean_reads/SRR2970555_R1_clean_paired.fa  ~/mydata/2018_clean_reads/SRR2970555_R2_clean_paired.fa > Obor_SRR_bwamem.sam
+             
+        samtools flagstat Obor_SRR_bwamem.sam
+        #Ouput: 194548022 + 0 in total (QC-passed reads + QC-failed reads)
+        0 + 0 secondary
+        1900 + 0 supplementary
+        0 + 0 duplicates
+        17708031 + 0 mapped (9.10% : N/A)
+        194546122 + 0 paired in sequencing
+        97273061 + 0 read1
+        97273061 + 0 read2
+        15771066 + 0 properly paired (8.11% : N/A)
+        15860486 + 0 with itself and mate mapped
+        1845645 + 0 singletons (0.95% : N/A)
+        63106 + 0 with mate mapped to a different chr
+        46653 + 0 with mate mapped to a different chr (mapQ>=5)    
+        
+Just to see if it would work, I also mapped the assembled reads from the other species against the same reference using the same approach:
+
+        bwa mem /data/project_data/beetles/reference/OTAU.fna  /data/project_data/beetles/assemblies/Osag_TrinityClean.fa.gz > Osag_bwamem.sam
+        
+        bwa mem /data/project_data/beetles/reference/OTAU.fna  /data/project_data/beetles/assemblies/Onig_all_09272011.fa.gz > Onig_bwamem.sam
+        
+        samtools flagstat Onig_bwamem.sam
+        #Output: 115761 + 0 in total (QC-passed reads + QC-failed reads)
+        0 + 0 secondary
+        15462 + 0 supplementary
+        0 + 0 duplicates
+        85042 + 0 mapped (73.46% : N/A)
+        0 + 0 paired in sequencing
+        0 + 0 read1
+        0 + 0 read2
+        0 + 0 properly paired (N/A : N/A)
+        0 + 0 with itself and mate mapped
+        0 + 0 singletons (N/A : N/A)
+        0 + 0 with mate mapped to a different chr
+        0 + 0 with mate mapped to a different chr (mapQ>=5)
+        
+        samtools flagstat Osag_bwamem.sam
+        #Output: 96476 + 0 in total (QC-passed reads + QC-failed reads)
+        0 + 0 secondary
+        19712 + 0 supplementary
+        0 + 0 duplicates
+        57329 + 0 mapped (59.42% : N/A)
+        0 + 0 paired in sequencing
+        0 + 0 read1
+        0 + 0 read2
+        0 + 0 properly paired (N/A : N/A)
+        0 + 0 with itself and mate mapped
+        0 + 0 singletons (N/A : N/A)
+        0 + 0 with mate mapped to a different chr
+        0 + 0 with mate mapped to a different chr (mapQ>=5)
+             
 ------
 <div id='id-section20'/>
-### Page 20:
+### Page 20: 2018-04-17: Code for class project, continued
+
+After getting sam files for each of the outgroups, I ran a modified CallSNPs script to get the appropriately filtered and sorted bam files:
+
+        vim BAM_processing_project.sh
+        
+        #!/bin/bash
+
+        samtools view -bS -@ 4 Osag_bwamem.sam > Osag_bwamem.bam
+        samtools flagstat Osag_bwamem.bam
+        samtools depth Osag_bwamem.bam
+        samtools fixmate Osag_bwamem.bam Osag_bwamem.fm.bam
+        samtools sort -@ 4 Osag_bwamem.fm.bam -o Osag_bwamem.fm.sort.bam
+        samtools rmdup Osag_bwamem.fm.sort.bam Osag_bwamem.fm.sort.rmdup.bam
+        samtools index Osag_bwamem.fm.sort.rmdup.bam
+        
+        samtools view -bS -@ 4 Onig_bwamem.sam > Onig_bwamem.bam
+        samtools flagstat Onig_bwamem.bam
+        samtools depth Onig_bwamem.bam
+        samtools fixmate Onig_bwamem.bam Onig_bwamem.fm.bam
+        samtools sort -@ 4 Onig_bwamem.fm.bam -o Onig_bwamem.fm.sort.bam
+        samtools rmdup Onig_bwamem.fm.sort.bam  Onig_bwamem.fm.sort.rmdup.bam
+        samtools index Onig_bwamem.fm.sort.rmdup.bam
+        
+        samtools view -bS -@ 4 Obor_SRR_bwamem.sam > Obor_SRR_bwamem.bam
+        samtools flagstat Obor_SRR_bwamem.bam
+        samtools depth Obor_SRR_bwamem.bam
+        samtools fixmate Obor_SRR_bwamem.bam Obor_SRR_bwamem.fm.bam
+        samtools sort -@ 4 Obor_SRR_bwamem.fm.bam -o Obor_SRR_bwamem.fm.sort.bam
+        samtools rmdup Obor_SRR_bwamem.fm.sort.bam Obor_SRR_bwamem.fm.sort.rmdup.bam
+        samtools index Obor_SRR_bwamem.fm.sort.rmdup.bam
+
+
+
 ------
 <div id='id-section21'/>
 ### Page 21:
