@@ -1637,7 +1637,7 @@ The All_Taxa_Consensus.vcf files contains the consensus sequence across taxa at 
 
         vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --kept-sites --out Otau_SNPs
 
-        vcftools --vcf All_Taxa_Consensus.vcf --keep Otau_SNPs.kept.sites --recode --out All_Taxa_OtauSNP_Sites
+        vcftools --vcf All_Taxa_Consensus.vcf --positions Otau_SNPs.kept.sites --recode --out All_Taxa_OtauSNP_Sites
 
 
 
