@@ -46,7 +46,7 @@ Science should be reproducible and one of the best ways to achieve this is by lo
 * [Page 18: 2018-04-13](#id-section18). Code for class project
 * [Page 19: 2018-04-16](#id-section19). Continuing analysis for class project
 * [Page 20: 2018-04-17](#id-section20). Code for class project, continued
-* [Page 21:](#id-section21).
+* [Page 21: 2018-04-18](#id-section21). Code for class project, continued
 * [Page 22:](#id-section22).
 * [Page 23:](#id-section23).
 * [Page 24:](#id-section24).
@@ -1517,6 +1517,8 @@ And mapped to O. tau reference using both aln and mem functions, for comparison:
 
         bwa aln /data/project_data/beetles/reference/OTAU.fna  ~/mydata/2018_clean_reads/SRR2970555_R1_clean_paired.fa  ~/mydata/2018_clean_reads/SRR2970555_R2_clean_paired.fa > Obor_SRR_bwaaln.sam
         
+However, when I went to check this .sam file with flagstat, I got an error message that it wasn't in the correct format. But the mem function worked okay:
+        
         bwa mem /data/project_data/beetles/reference/OTAU.fna  ~/mydata/2018_clean_reads/SRR2970555_R1_clean_paired.fa  ~/mydata/2018_clean_reads/SRR2970555_R2_clean_paired.fa > Obor_SRR_bwamem.sam
              
         samtools flagstat Obor_SRR_bwamem.sam
@@ -1574,7 +1576,7 @@ Just to see if it would work, I also mapped the assembled reads from the other s
 <div id='id-section20'/>
 ### Page 20: 2018-04-17: Code for class project, continued
 
-After getting sam files for each of the outgroups, I ran a modified CallSNPs script to get the appropriately filtered and sorted bam files:
+After getting sam files for each of the outgroups, I created a script to get the appropriately filtered and sorted bam files:
 
         vim BAM_processing_project.sh
         
@@ -1604,14 +1606,41 @@ After getting sam files for each of the outgroups, I ran a modified CallSNPs scr
         samtools rmdup Obor_SRR_bwamem.fm.sort.bam Obor_SRR_bwamem.fm.sort.rmdup.bam
         samtools index Obor_SRR_bwamem.fm.sort.rmdup.bam
 
-
-
 ------
 <div id='id-section21'/>
-### Page 21:
+### Page 21: 2018-04-18: Code for class project, continued
+
+Today, I moved all of the sorted and indexed .bam files to our shared folder, as well as the merged .bam file for all individuals from the 3 O. taurus populations (Melissa provided this for us). Next, I renamed and indexed the merged O. taurus file, as well as created a bam list file to use in mpileup:
+
+        mv merged_fixmate.sorted.rmdup.bam Otau_fm.sort.rmdup.bam
+        samtools index Otau_fm.sort.rmdup.bam
+        
+        vim BAM_List.txt #each file must be on its own line
+        #/data/project_data/beetles/share/EthanJamie/Obor_SRR_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Onig_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Osag_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Otau_fm.sort.rmdup.bam
+        
+Then I created a bash script to run mpileup. This script calls to the O. tau reference transcriptome, specifies the input bam files, and says to output the consensus call for all sites as a vcf:
+
+        vim CallSNPs_project.sh
+        # #!/bin/bash
+
+        bcftools mpileup -Ou -f /data/project_data/beetles/reference/OTAU.fna --bam-list BAM_List.txt  –threads 8 –skip-indel –annotate AD,DP | bcftools call -c  > All_Taxa_Consensus.vcf
+        
+
 ------
 <div id='id-section22'/>
-### Page 22:
+### Page 22: 2018-04-19-2018: Class project (Calling ancestral vs. derived alleles)
+
+The All_Taxa_Consensus.vcf files contains the consensus sequence across taxa at all sites. To retain only the sites where there are SNPs in O. taurus, I moved our working Otau SNP file to the same folder and outputed the SNP positions to a file called Otau_SNPs.kept.sites. Then I told vcftools to retain only those sites from the consensus vcf file:
+
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --kept-sites --out Otau_SNPs
+
+        vcftools --vcf All_Taxa_Consensus.vcf --keep Otau_SNPs.kept.sites --recode --out All_Taxa_OtauSNP_Sites
+
+
+
 ------
 <div id='id-section23'/>
 ### Page 23:
