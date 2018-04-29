@@ -1626,7 +1626,7 @@ Then I created a bash script to run mpileup. This script calls to the O. tau ref
         vim CallSNPs_project.sh
         # #!/bin/bash
 
-        bcftools mpileup -Ou -f /data/project_data/beetles/reference/OTAU.fna --bam-list BAM_List.txt  –threads 8 –skip-indel –annotate AD,DP | bcftools call -c  > All_Taxa_Consensus.vcf
+        bcftools mpileup -Ou -f /data/project_data/beetles/reference/OTAU.fna --bam-list BAM_List.txt  –-threads 8 –-skip-indel –-annotate AD,DP | bcftools call -c  > All_Taxa_Consensus.vcf
         
 
 ------
@@ -1640,13 +1640,140 @@ The All_Taxa_Consensus.vcf files contains the consensus sequence across taxa at 
         vcftools --vcf All_Taxa_Consensus.vcf --positions Otau_SNPs.kept.sites --recode --out All_Taxa_OtauSNP_Sites
 
 
-
 ------
 <div id='id-section23'/>
-### Page 23:
+### Page 23: 2018-04-23: Ancestral vs. derived alleles
+
+Today, we realized that we should call the overall consensus using equal representation of each species, not a single individual of the 3 outgroups vs. 72 of O. taurus. So re-ran this calling a consensus of O. taurus first:
+
+        bcftools mpileup  --threads 15 --skip-indel --annotate AD,DP -Ou -f /data/project_data/beetles/reference/OTAU.fna /data/project_data/beetles/share/EthanJamie/Otau_fm.sort.rmdup.bam | bcftools call -c  > All_Otau_Consensus.vcf
+        vcfutils.pl vcf2fq All_Otau_Consensus.vcf > Otau_Consensus.fq
+        
+Alternatively, could have just used this:       
+        
+        bcftools mpileup  --threads 15 --skip-indel --annotate AD,DP -Ou -f /data/project_data/beetles/reference/OTAU.fna /data/project_data/beetles/share/EthanJamie/Otau_fm.sort.rmdup.bam | bcftools call -c | vcfutils.pl vcf2fq > Otau_consensus.fq
+        
+Then, need to convert the .fastq back to .bam to use in mpileup function:
+
+      bwa mem /data/project_data/beetles/reference/OTAU.fna  /data/project_data/beetles/share/EthanJamie/Otau_Consensus.fq > Otau_Consensus.sam
+      samtools view -bS -@ 4 Otau_Consensus.sam > Otau_Consensus.bam
+      samtools sort -@ 4 Otau_Consensus.bam -o Otau_Consensus.sort.bam
+      samtools index Otau_Consensus.sort.bam
+      
+Then, update bam_list.txt and re-run mpileup via CallSNPs_project.sh:
+
+        /data/project_data/beetles/share/EthanJamie/Obor_SRR_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Onig_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Osag_bwamem.fm.sort.rmdup.bam
+        /data/project_data/beetles/share/EthanJamie/Otau_Consensus.sort.bam
+        
+        bash CallSNPs_project.sh
+        
+
+Used the following to look at vcf files:
+
+        head -n50000 All_Taxa_Consensus2.vcf | tail -n10 > Test.out
+        vim Test.out
+        
+And then pulled out only the sites where we previously identified SNPs in Otau:        
+        
+        vcftools --vcf All_Taxa_Consensus2.vcf --positions Otau_SNPs.kept.sites --recode --out All_Taxa_OtauSNP_Sites
+        
+We then pulled out base sequence at all sites in consensus (=ancestral allele), as well as in O. taurus, and merged them into a single file: "AncestralDerivedAlleles.txt". 
+        
+        grep -v "#" All_Taxa_OtauSNP_Sites.recode.vcf | cut -f 1,2,4,5 > Consensus_Bases.txt
+        grep -v "#" OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf | cut -f 1,2,4,5 > Otaurus_Bases.txt
+        
+To create population specific vcf files:
+
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep IT.inds --recode --out IT_SNPs
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep NC.inds --recode --out NC_SNPs
+        vcftools --vcf OTAU_2018_reads2snps_DP10GP95_biallelic_MAF0.01_Miss0.8.vcf.recode.vcf --keep WA.inds --recode --out WA_SNPs
+        
 ------
 <div id='id-section24'/>
-### Page 24:
+### Page 24: 2018-04-25: Class project (Identifying genes where snps are mostly likely to be bad)
+
+I tried working with vcf2eqtl in R, but the program didn't like how our working vcf file was formatted, in particular, it required the file to have additional genotype tags. To work around this, we pulled out the SNP site positions from the vcf file created using samtools (as reads2snps doesn't output the needed tags):
+
+        vcftools --vcf /data/project_data/beetles/snps/OTAU_2018_samtools.vcf --min-alleles 2 --max-alleles 2 --positions Otau_SNPs.kept.sites --recode --out OtauSNPs.eQTL
+        
+This should have worked, but it created a vcf file with only 115511 sites compared to the 133291 that should have been retained. Ok, it's just that samtools retained fewer sites during the initial mapping. Will just use this for now. Here is my R code for the eQTL analysis:
+
+        library("vcf2eqtl", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+        
+        counts <- read.delim('allcountsdataRN.txt', header=T, stringsAsFactors = T, row.names=1)
+        counts = as.matrix(counts)
+
+        vcf <- 'OtauSNPs.eQTL.recode.vcf'
+        
+        metadata<-read.delim('cols_data.txt')
+        
+        pops=metadata$population
+        
+        results = vcf2eqtl(vcf, counts, pops, mc.cores = 2)
+        view(results)
+        results2 = results[["res"]]
+        ContigExpr = results[["snpContigExpr"]]
+        geno = results[["genos"]]
+        write.csv(results2, file="eQTL_Output.csv")
+        write.csv(ContigExpr, file="eQTL_contigExpr.csv")
+        write.csv(geno, file="eQTL_genotypes.csv")
+        
+
+To identify SNPs with predicted deleterious effects:
+
+        grep -e "MODERATE" -e "HIGH" /data/project_data/beetles/share/snpeff/snpeffcontigs.biallelic.vcf.recode.vcf  > Bad_SNPs.vcf
+        
+        vcftools --vcf Bad_SNPs.vcf --kept-sites --out Bad_SNPs_sites
+        
+        
+To identify SNPs in highly expressed transcripts, I created tab delimited txt files for each population that contained the top 200 most highly expressed transcripts, using the count data in allcountsdataRN.txt. Then I uploaded them to the server, and made sure they were in the correct format:
+
+        vim IT_Top200.txt
+        #:%s/<Ctrl-V><Ctrl-M>/\r/g where <Ctrl-V><Ctrl-M> means type Ctrl+V then Ctrl+M to convert line breaks
+
+
+To compare genes and SNPs from the "bad" list to the top 200 highest expressed lists as well as eQTL list:
+
+        grep -f WA_Top200.txt Bad_SNPs_sites.kept.sites > WA_Bad_Genes_Top200.txt
+        grep -f IT_Top200.txt Bad_SNPs_sites.kept.sites > IT_Bad_Genes_Top200.txt
+        grep -f NC_Top200.txt Bad_SNPs_sites.kept.sites > NC_Bad_Genes_Top200.txt
+        
+        vcftools --vcf WA_SNPs.recode.vcf --positions WA_Bad_Genes_Top200.txt  --recode --out WA_Bad_SNPs_Top200
+        vcftools --vcf IT_SNPs.recode.vcf --positions IT_Bad_Genes_Top200.txt  --recode --out IT_Bad_SNPs_Top200
+        vcftools --vcf NC_SNPs.recode.vcf --positions NC_Bad_Genes_Top200.txt  --recode --out NC_Bad_SNPs_Top200
+        
+        vcftools --vcf WA_SNPs.recode.vcf --positions eQTL_sites.txt  --recode --out WA_Bad_SNPs_eQTL
+        vcftools --vcf IT_SNPs.recode.vcf --positions eQTL_sites.txt  --recode --out IT_Bad_SNPs_eQTL
+        vcftools --vcf NC_SNPs.recode.vcf --positions eQTL_sites.txt  --recode --out NC_Bad_SNPs_eQTL
+        
+
+To examine allele frequencies of ancestral vs. derived at these sites among populations:        
+        
+        grep -v "#" WA_Bad_SNPs_eQTL.recode.vcf | cut -f 1,2,4,5 > WA_Bad_eQTL_Bases.txt
+        grep -v "#" WA_Bad_SNPs_Top200.recode.vcf | cut -f 1,2,4,5 > WA_Bad_Top200_Bases.txt
+        grep -v "#" IT_Bad_SNPs_eQTL.recode.vcf | cut -f 1,2,4,5 > IT_Bad_eQTL_Bases.txt
+        grep -v "#" IT_Bad_SNPs_Top200.recode.vcf | cut -f 1,2,4,5 > IT_Bad_Top200_Bases.txt
+        grep -v "#" NC_Bad_SNPs_eQTL.recode.vcf | cut -f 1,2,4,5 > NC_Bad_eQTL_Bases.txt
+        grep -v "#" NC_Bad_SNPs_Top200.recode.vcf | cut -f 1,2,4,5 > NC_Bad_Top200_Bases.txt
+        
+        vcftools --vcf WA_Bad_SNPs_Top200.recode.vcf --freq --out WA_Bad_Top200
+        vcftools --vcf WA_Bad_SNPs_eQTL.recode.vcf --freq --out WA_Bad_eQTL
+        vcftools --vcf IT_Bad_SNPs_Top200.recode.vcf --freq --out IT_Bad_Top200
+        vcftools --vcf IT_Bad_SNPs_eQTL.recode.vcf --freq --out IT_Bad_eQTL
+        vcftools --vcf NC_Bad_SNPs_Top200.recode.vcf --freq --out NC_Bad_Top200
+        vcftools --vcf NC_Bad_SNPs_eQTL.recode.vcf --freq --out NC_Bad_eQTL
+        
+        
+        
+
+
+
+
+
+
+
 ------
 <div id='id-section25'/>
 ### Page 25:
